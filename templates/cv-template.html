@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="{{LANG}}">
+<head>
+<meta charset="UTF-8">
+<title>{{NAME}} — CV</title>
+<style>
+  @page { size: letter; margin: 0.42in 0.55in; }
+  * { box-sizing: border-box; }
+  body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 9.5pt; line-height: 1.28; color: #000; margin: 0; }
+  .name { text-align: center; font-size: 20pt; font-weight: 700; letter-spacing: 0.02em; margin: 0 0 2px 0; }
+  .contact { text-align: center; font-size: 9pt; margin-bottom: 4px; }
+  .summary { font-size: 9pt; margin: 0 0 4px 0; text-align: left; line-height: 1.28; }
+  h2.section { font-size: 10.5pt; font-weight: 700; margin: 3px 0 0 0; padding-bottom: 0; border-bottom: 0.6pt solid #000; }
+  .entry { margin: 1px 0; }
+  .entry-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 9.5pt; }
+  .entry-head .left { font-weight: 700; }
+  .entry-head .left .role { font-weight: 400; font-style: italic; }
+  .entry-head .right { font-weight: 400; }
+  .entry-sub { display: flex; justify-content: space-between; font-size: 9pt; }
+  ul.bullets { margin: 1px 0; padding-left: 0; list-style: none; }
+  ul.bullets li { margin: 0; font-size: 9pt; line-height: 1.25; padding-left: 11px; position: relative; }
+  ul.bullets li::before { content: "•"; position: absolute; left: 2px; top: 0; font-size: 9pt; }
+  .skills p, .honors p { margin: 0; font-size: 9pt; line-height: 1.30; }
+  .skills b, .honors b { font-weight: 700; }
+  .honors-row { display: flex; justify-content: space-between; font-size: 9pt; }
+  a { color: #000; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="name">{{NAME}}</div>
+<div class="contact">{{EMAIL}} | {{PHONE}} | {{PORTFOLIO_DISPLAY}} | {{LINKEDIN_DISPLAY}}</div>
+<div class="summary">{{SUMMARY_TEXT}}</div>
+
+<h2 class="section">Education</h2>
+<div class="entry">
+  <div class="entry-head"><div class="left">The University of Texas at Austin</div><div class="right">December 2020</div></div>
+  <div class="entry-sub"><div>Bachelor of Science in Electrical and Computer Engineering</div><div><b>GPA: 3.5</b></div></div>
+</div>
+
+<h2 class="section">Experience</h2>
+
+<div class="entry">
+  <div class="entry-head"><div class="left">Microsoft Teams, <span class="role">Product Manager II</span></div><div class="right">Sept 2024 &ndash; Present</div></div>
+  <ul class="bullets">{{TEAMS_BULLETS}}</ul>
+</div>
+
+<div class="entry">
+  <div class="entry-head"><div class="left">Axio (www.axio.llc), <span class="role">Founder</span></div><div class="right">March 2025 &ndash; Present</div></div>
+  <ul class="bullets">{{AXIO_BULLETS}}</ul>
+</div>
+
+<div class="entry">
+  <div class="entry-head"><div class="left">Microsoft Mesh, <span class="role">Product Manager II</span></div><div class="right">March 2021 &ndash; Sept 2024</div></div>
+  <ul class="bullets">{{MESH_BULLETS}}</ul>
+</div>
+
+<div class="entry">
+  <div class="entry-head"><div class="left">Microsoft, <span class="role">Program Management Intern / Scrum Master</span></div><div class="right">June 2020 &ndash; Aug 2020</div></div>
+  <ul class="bullets"><li>Improved team documentation and meeting processes; explored ethics of AR technology and identified business opportunities.</li></ul>
+</div>
+
+<div class="entry">
+  <div class="entry-head"><div class="left">Accenture, <span class="role">Technology Summer Analyst</span></div><div class="right">June 2019 &ndash; Aug 2019</div></div>
+  <ul class="bullets"><li>Generated requirements, estimated migration effort, and co-presented a client proposal to migrate a Big Data app to cloud.</li></ul>
+</div>
+
+<h2 class="section">Leadership Activities</h2>
+
+<div class="entry">
+  <div class="entry-head"><div class="left">La Cumbre Cotidiana, <span class="role">Board Member, ex Chief Operating Officer</span></div><div class="right">Dec 2020 &ndash; Present</div></div>
+  <ul class="bullets">
+    <li>Transformed an Instagram page into a legally recognized nonprofit in the U.S. and Mexico with 40+ members and 30K followers, generating ~$1,000,000 MXN in annual revenue.</li>
+    <li>Built org structure and subdivisions; mentored 7 emerging leaders, including coaching the CTO on product thinking.</li>
+    <li>Introduced AI tooling across the organization to accelerate operations, supporting significant revenue growth.</li>
+    <li>Led product management for lcc.mx and the management division, establishing processes still used today.</li>
+  </ul>
+</div>
+
+<div class="entry">
+  <div class="entry-head"><div class="left">Microsoft Sustainability Connected Community, <span class="role">Events Coordination Lead</span></div><div class="right">Oct 2024 &ndash; Nov 2025</div></div>
+  <ul class="bullets"><li>Organized Hackathon and Earth Month events driving initiatives to reduce GHG emissions within Microsoft.</li></ul>
+</div>
+
+<div class="entry">
+  <div class="entry-head"><div class="left">SF Climate Week, <span class="role">Volunteer</span></div><div class="right">April 2024</div></div>
+  <ul class="bullets"><li>Supported event operations ensuring quality and smooth flow of guests alongside photography.</li></ul>
+</div>
+
+<div class="entry">
+  <div class="entry-head"><div class="left">Techo ASFM, <span class="role">Chief Networking Officer</span></div><div class="right">Feb 2014 &ndash; Jun 2016</div></div>
+  <ul class="bullets"><li>Automated processes within a nonprofit dedicated to eradicating poverty in Latin America; rose through the ranks over three years, guiding and motivating 300+ volunteers.</li></ul>
+</div>
+
+<h2 class="section">Skills &amp; Additional Information</h2>
+<div class="skills">
+  <p><b>Product:</b> {{SKILLS_PRODUCT}}</p>
+  <p><b>AI:</b> {{SKILLS_AI}}</p>
+  <p><b>Tools:</b> Figma, Claude Code, Cursor, Vercel v0, Adobe Illustrator, Photoshop</p>
+  <p><b>Languages:</b> Fluent in English and Spanish</p>
+  <p><b>Work Eligibility:</b> Eligible to work in the U.S. and Mexico with no restrictions</p>
+  <p><b>Interests:</b> Rock Climbing, Surfing, Photography, Music Production, Guitars, Cinema, Cooking, Mountain Biking, Snowboarding, Hiking</p>
+</div>
+
+<h2 class="section">Honors &amp; Scholarships</h2>
+<div class="honors">
+  <div class="honors-row"><div>Cockrell School of Engineering Early Planner Scholarship Recipient, UT Austin</div><div>Fall 2019</div></div>
+  <div class="honors-row"><div>University Honors, UT Austin</div><div>Fall 2017, Spring 2018, Fall 2018</div></div>
+  <div class="honors-row"><div>College of Engineering Dean's List, UT Arlington</div><div>Spring 2017</div></div>
+</div>
+
+</body>
+</html>

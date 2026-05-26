@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="{{LANG}}">
+<head>
+<meta charset="UTF-8">
+<title>{{NAME}} — Cover Letter</title>
+<style>
+  @page { size: letter; margin: 0.6in 0.6in; }
+  * { box-sizing: border-box; }
+  body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 10.5pt; line-height: 1.45; color: #000; margin: 0; }
+  .name { text-align: center; font-size: 20pt; font-weight: 700; letter-spacing: 0.02em; margin: 0 0 2px 0; }
+  .contact { text-align: center; font-size: 9.5pt; margin-bottom: 14px; }
+  .date-line { font-size: 10pt; margin-bottom: 10px; }
+  .salutation { margin: 0 0 8px 0; }
+  p { margin: 0 0 8px 0; text-align: left; }
+  .signoff { margin-top: 12px; }
+  .signature { font-weight: 700; }
+  a { color: #000; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="name">{{NAME}}</div>
+<div class="contact">{{EMAIL}} | {{PHONE}} | {{PORTFOLIO_DISPLAY}} | {{LINKEDIN_DISPLAY}}</div>
+
+<div class="date-line">{{DATE_LONG}}</div>
+<div class="salutation">{{SALUTATION}}</div>
+
+{{COVER_BODY}}
+
+<div class="signoff">
+  <p>Sincerely,</p>
+  <p class="signature">{{NAME}}</p>
+</div>
+
+</body>
+</html>

@@ -2,3 +2,34 @@ node_modules/
 .DS_Store
 *.log
 .env
+
+# === User data — NEVER commit personal info ===
+cv.md
+article-digest.md
+portals.yml
+config/profile.yml
+modes/_profile.md
+
+# User data directories
+data/
+reports/
+output/
+jds/
+interview-prep/
+
+# Batch runtime data (not scripts)
+batch/batch-state.tsv
+batch/batch-input.tsv
+batch/expired-urls.txt
+batch/failed-urls.txt
+batch/liveness-results.txt
+batch/logs/*.log
+batch/tracker-additions/*.tsv
+batch/tracker-additions/merged/
+
+# Backups
+*.bak
+*.bak-*
+
+# OS
+Thumbs.db

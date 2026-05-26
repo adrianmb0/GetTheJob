@@ -1,14 +1,26 @@
 {
   "name": "getthejob",
   "version": "0.1.0",
-  "description": "Job application dashboard — track, triage, and manage your job search",
+  "description": "AI-powered job search dashboard — scan, triage, track, and apply",
   "type": "module",
   "main": "server.mjs",
   "scripts": {
     "start": "node server.mjs",
-    "dev": "node --watch server.mjs"
+    "dev": "node --watch server.mjs",
+    "scan": "node scan.mjs",
+    "doctor": "node doctor.mjs",
+    "verify": "node verify-pipeline.mjs",
+    "normalize": "node normalize-statuses.mjs",
+    "dedup": "node dedup-tracker.mjs",
+    "merge": "node merge-tracker.mjs",
+    "pdf": "node generate-pdf.mjs",
+    "liveness": "node check-liveness.mjs"
   },
-  "keywords": ["job-search", "dashboard", "applications", "career"],
+  "keywords": ["job-search", "dashboard", "applications", "career", "ai"],
   "author": "Adrian Melo",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "js-yaml": "^4.1.1",
+    "playwright": "^1.58.1"
+  }
 }
