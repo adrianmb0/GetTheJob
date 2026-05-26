@@ -1,0 +1,14 @@
+{
+  "name": "getthejob",
+  "version": "0.1.0",
+  "description": "Job application dashboard — track, triage, and manage your job search",
+  "type": "module",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs"
+  },
+  "keywords": ["job-search", "dashboard", "applications", "career"],
+  "author": "Adrian Melo",
+  "license": "MIT"
+}
