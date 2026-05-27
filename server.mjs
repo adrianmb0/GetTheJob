@@ -2391,12 +2391,12 @@ const server = createServer(async (req, res) => {
     }
 
     if (pathname === '/onboarding') {
-      const isPreview = query.preview === '1';
+      const devMode = process.env.DEV === '1';
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      if (profileExists && !isPreview) {
+      if (profileExists && !devMode) {
         res.end(shell('Setup', '<h1>Already Set Up</h1><p>Your profile is configured. <a href="/">Go to your dashboard</a>.</p><p class="muted">To reconfigure, delete <code>config/profile.yml</code> and reload this page.</p>'));
       } else {
-        res.end(renderOnboarding(isPreview));
+        res.end(renderOnboarding(devMode && profileExists));
       }
       return;
     }
