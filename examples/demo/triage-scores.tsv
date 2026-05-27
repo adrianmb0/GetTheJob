@@ -1,0 +1,16 @@
+url	first_seen	score	verdict	company	role	location	one_line_note
+https://example.com/jobs/1001	2026-05-24	4.7	APPLY HIGH	Acme Corp	Senior Data Analyst	NYC hybrid	Strong fit; hybrid schedule works
+https://example.com/jobs/1002	2026-05-24	4.5	APPLY HIGH	Tyrell Corp	Applied AI Engineer	SF	Core LLM work; fast-growing team
+https://example.com/jobs/1003	2026-05-24	4.4	APPLY	Stark Industries	Solutions Architect	SF hybrid	Customer-facing + technical
+https://example.com/jobs/1004	2026-05-23	4.2	APPLY	Globex Inc	Product Manager, Platform	Remote US	0-to-1 product; great culture fit
+https://example.com/jobs/1005	2026-05-23	4.0	APPLY	Initech	Lead Instructor, Data Science	Remote	Curriculum design + teaching
+https://example.com/jobs/1006	2026-05-23	3.8	APPLY (reach)	Umbrella Co	VP of Engineering	NYC	Senior leadership; stretch role
+https://example.com/jobs/1007	2026-05-22	3.6	APPLY (reach)	Wayne Enterprises	Staff Engineer	Remote EU	Systems-heavy; less ML focus
+https://example.com/jobs/1008	2026-05-22	3.5	SKIP	Cyberdyne Systems	Junior ML Engineer	Boston	Below seniority target
+https://example.com/jobs/1009	2026-05-22	2.8	SKIP	Soylent Corp	DevOps Engineer	Remote	Pure infra/ops; not a match
+https://example.com/jobs/1010	2026-05-21	2.5	SKIP	Wonka Industries	Management Consultant	NYC	80% travel; generalist role
+https://example.com/jobs/1011	2026-05-21	4.3	APPLY	Oscorp	Bioinformatics Engineer	Boston hybrid	Computational bio + ML
+https://example.com/jobs/1012	2026-05-21	1.5	SKIP	Dunder Mifflin	Office Administrator	Scranton	Off-archetype; no relevance
+https://example.com/jobs/1013	2026-05-20	4.1	APPLY	Weyland-Yutani	ML Engineer, Research	SF	Cutting-edge but niche domain
+https://example.com/jobs/1014	2026-05-20	3.3	SKIP	Bluth Company	Business Analyst	Newport Beach	Traditional BI; below comp target
+https://example.com/jobs/1015	2026-05-20	4.6	APPLY HIGH	Hooli	AI Product Manager	Remote US	Perfect archetype match; 0-to-1

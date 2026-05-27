@@ -4,7 +4,7 @@
 // Works standalone or pointed at a career-ops data directory.
 
 import { createServer } from 'node:http';
-import { readFileSync, writeFileSync, existsSync, statSync, copyFileSync, renameSync, readdirSync, createReadStream } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, statSync, copyFileSync, renameSync, readdirSync, createReadStream, mkdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -13,6 +13,38 @@ const PORT = process.env.PORT || 3737;
 const ROOT = process.env.DATA_DIR
   ? resolve(process.env.DATA_DIR)
   : resolve(fileURLToPath(import.meta.url), '..');
+
+// ----- onboarding data -----
+
+const INDUSTRIES = [
+  { id: 'tech', label: 'Technology & Software', icon: '💻' },
+  { id: 'finance', label: 'Finance & Fintech', icon: '📊' },
+  { id: 'health', label: 'Healthcare & Biotech', icon: '🏥' },
+  { id: 'legal', label: 'Legal & Compliance', icon: '⚖️' },
+  { id: 'climate', label: 'Climate & Energy', icon: '🌱' },
+  { id: 'education', label: 'Education & EdTech', icon: '📚' },
+  { id: 'media', label: 'Media & Entertainment', icon: '🎬' },
+  { id: 'consulting', label: 'Consulting & Professional Services', icon: '🤝' },
+  { id: 'government', label: 'Government & Public Sector', icon: '🏛️' },
+  { id: 'retail', label: 'Retail & E-commerce', icon: '🛒' },
+  { id: 'manufacturing', label: 'Manufacturing & Supply Chain', icon: '🏭' },
+  { id: 'other', label: 'Other', icon: '🔧' },
+];
+
+const ROLE_SUGGESTIONS = {
+  tech: ['Software Engineer', 'Senior Software Engineer', 'Staff Engineer', 'Frontend Engineer', 'Backend Engineer', 'Full-Stack Engineer', 'DevOps Engineer', 'Site Reliability Engineer', 'ML Engineer', 'AI Engineer', 'Data Engineer', 'Platform Engineer', 'Solutions Architect', 'Product Manager', 'Technical Program Manager', 'Engineering Manager', 'CTO', 'VP of Engineering', 'Developer Advocate', 'QA Engineer'],
+  finance: ['Financial Analyst', 'Quantitative Analyst', 'Risk Analyst', 'Portfolio Manager', 'Investment Banker', 'Compliance Officer', 'Fintech Product Manager', 'Data Analyst', 'Actuary', 'Treasury Analyst', 'Credit Analyst', 'Audit Manager'],
+  health: ['Bioinformatics Engineer', 'Clinical Data Analyst', 'Health Informatics Specialist', 'Biostatistician', 'Regulatory Affairs Specialist', 'Medical Science Liaison', 'Clinical Research Associate', 'Healthcare Product Manager', 'Computational Biologist', 'Pharmacovigilance Analyst'],
+  legal: ['Legal Analyst', 'Compliance Manager', 'Paralegal', 'Legal Operations Manager', 'Contract Manager', 'Privacy Officer', 'Legal Counsel', 'Policy Analyst', 'Regulatory Specialist', 'IP Analyst'],
+  climate: ['Sustainability Analyst', 'Energy Engineer', 'Climate Data Scientist', 'Environmental Consultant', 'Carbon Markets Analyst', 'Clean Energy Product Manager', 'ESG Analyst', 'Grid Optimization Engineer', 'Renewable Energy Specialist'],
+  education: ['Curriculum Designer', 'Instructional Designer', 'EdTech Product Manager', 'Learning Engineer', 'Data Analyst', 'Academic Advisor', 'Education Program Manager', 'Assessment Specialist', 'Online Course Developer'],
+  media: ['Content Strategist', 'Product Manager', 'Data Analyst', 'UX Designer', 'Growth Manager', 'Marketing Manager', 'Creative Director', 'Video Producer', 'Audience Development Manager'],
+  consulting: ['Management Consultant', 'Strategy Consultant', 'Business Analyst', 'Technology Consultant', 'Implementation Consultant', 'Project Manager', 'Solutions Consultant', 'Digital Transformation Lead', 'Change Management Consultant'],
+  government: ['Policy Analyst', 'Data Analyst', 'Program Manager', 'IT Specialist', 'Grants Manager', 'Urban Planner', 'Public Affairs Specialist', 'Intelligence Analyst', 'Cybersecurity Analyst'],
+  retail: ['E-commerce Manager', 'Supply Chain Analyst', 'Merchandising Analyst', 'Product Manager', 'Data Analyst', 'Category Manager', 'Logistics Coordinator', 'Demand Planner', 'Digital Marketing Manager'],
+  manufacturing: ['Supply Chain Manager', 'Process Engineer', 'Quality Engineer', 'Operations Manager', 'Manufacturing Engineer', 'Industrial Engineer', 'Automation Engineer', 'Production Planner', 'Logistics Manager'],
+  other: ['Project Manager', 'Product Manager', 'Data Analyst', 'Business Analyst', 'Operations Manager', 'Marketing Manager', 'UX Designer', 'Software Engineer'],
+};
 
 // ----- helpers -----
 
@@ -746,6 +778,486 @@ ${TABLE_JS}
 </html>`;
 }
 
+// ----- onboarding -----
+
+function renderOnboarding(previewMode = false) {
+  const demoAppPath = join(ROOT, 'examples', 'demo', 'applications.md');
+  const demoTriagePath = join(ROOT, 'examples', 'demo', 'triage-scores.tsv');
+  const demoAppExists = existsSync(demoAppPath);
+  const demoTriageExists = existsSync(demoTriagePath);
+
+  let previewTrackerHtml = '<div class="empty">Demo data not found.</div>';
+  if (demoAppExists) {
+    const { header, rows } = parseApplicationsMd(readFileSync(demoAppPath, 'utf8'));
+    const idx = {
+      num: header.findIndex(h => h.trim() === '#'),
+      date: header.findIndex(h => /^date$/i.test(h)),
+      company: header.findIndex(h => /^company$/i.test(h)),
+      role: header.findIndex(h => /^role$/i.test(h)),
+      score: header.findIndex(h => /^score$/i.test(h)),
+      status: header.findIndex(h => /^status$/i.test(h)),
+      notes: header.findIndex(h => /^notes$/i.test(h)),
+    };
+    const tbodyRows = rows.map(r => {
+      const status = (r[idx.status] || '').trim();
+      const scoreRaw = r[idx.score] || '';
+      const rowClass = ['Applied','Rejected','Discarded'].includes(status) ? `row-${status.toLowerCase()}` : '';
+      return `<tr class="${rowClass}">
+        <td>${escapeHtml(r[idx.num] || '')}</td>
+        <td>${escapeHtml(r[idx.date] || '')}</td>
+        <td><strong>${escapeHtml(r[idx.company] || '')}</strong></td>
+        <td>${escapeHtml(r[idx.role] || '')}</td>
+        <td><span class="score-pill ${scoreClass(scoreRaw)}">${escapeHtml(scoreRaw)}</span></td>
+        <td>${escapeHtml(status)}</td>
+        <td class="muted" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r[idx.notes] || '')}</td>
+      </tr>`;
+    }).join('');
+    previewTrackerHtml = `<table><thead><tr><th>#</th><th>Date</th><th>Company</th><th>Role</th><th>Score</th><th>Status</th><th>Notes</th></tr></thead><tbody>${tbodyRows}</tbody></table>`;
+  }
+
+  let previewTriageHtml = '<div class="empty">Demo data not found.</div>';
+  if (demoTriageExists) {
+    const { header, rows } = parseTsv(readFileSync(demoTriagePath, 'utf8'));
+    const idx = {
+      score: header.findIndex(h => /^score$/i.test(h)),
+      verdict: header.findIndex(h => /^verdict$/i.test(h)),
+      company: header.findIndex(h => /^company$/i.test(h)),
+      role: header.findIndex(h => /^role$/i.test(h)),
+      location: header.findIndex(h => /^location$/i.test(h)),
+      note: header.findIndex(h => /^one[_ ]line[_ ]note$/i.test(h)),
+    };
+    const sorted = rows.slice().sort((a, b) => parseFloat(b[idx.score]) - parseFloat(a[idx.score]));
+    const tbodyRows = sorted.map(r => {
+      const v = (r[idx.verdict] || '').trim();
+      return `<tr>
+        <td><span class="score-pill ${scoreClass(r[idx.score])}">${escapeHtml(r[idx.score])}</span></td>
+        <td><span class="verdict-pill ${verdictClass(v)}">${escapeHtml(v)}</span></td>
+        <td><strong>${escapeHtml(r[idx.company] || '')}</strong></td>
+        <td>${escapeHtml(r[idx.role] || '')}</td>
+        <td>${escapeHtml(r[idx.location] || '')}</td>
+        <td class="muted">${escapeHtml(r[idx.note] || '')}</td>
+      </tr>`;
+    }).join('');
+    previewTriageHtml = `<table><thead><tr><th>Score</th><th>Verdict</th><th>Company</th><th>Role</th><th>Location</th><th>Note</th></tr></thead><tbody>${tbodyRows}</tbody></table>`;
+  }
+
+  const industriesJson = JSON.stringify(INDUSTRIES);
+  const roleSuggestionsJson = JSON.stringify(ROLE_SUGGESTIONS);
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GetTheJob — Setup</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💼</text></svg>">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+${CSS}
+.onboarding { max-width: 800px; margin: 0 auto; padding: 40px 24px 80px; }
+.ob-hero { text-align: center; margin-bottom: 40px; }
+.ob-hero h1 { font-size: 32px; margin: 0 0 8px; }
+.ob-hero .ob-icon { font-size: 48px; margin-bottom: 12px; }
+.ob-hero p { color: var(--muted); font-size: 16px; margin: 0; }
+.ob-step { display: none; }
+.ob-step.active { display: block; }
+.ob-progress { display: flex; justify-content: center; gap: 8px; margin: 0 0 32px; }
+.ob-progress .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); transition: background 0.2s; }
+.ob-progress .dot.done { background: var(--high); }
+.ob-progress .dot.current { background: var(--accent); }
+.ob-btn { display: inline-block; padding: 10px 28px; border-radius: 8px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.15s, opacity 0.15s; }
+.ob-btn-primary { background: var(--accent); color: #fff; }
+.ob-btn-primary:hover { opacity: 0.9; }
+.ob-btn-secondary { background: #fff; color: var(--fg); border: 1px solid var(--border); }
+.ob-btn-secondary:hover { background: var(--row-alt); }
+.ob-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.ob-actions { display: flex; justify-content: space-between; margin-top: 32px; }
+.ob-field { margin-bottom: 20px; }
+.ob-field label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+.ob-field .ob-hint { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.ob-field input, .ob-field textarea, .ob-field select { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; font-family: inherit; background: #fff; }
+.ob-field input:focus, .ob-field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+.ob-field textarea { min-height: 200px; font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace; font-size: 13px; }
+.ob-row { display: flex; gap: 16px; }
+.ob-row > .ob-field { flex: 1; }
+.ob-industry-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 8px; }
+.ob-industry-card { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 2px solid var(--border); border-radius: 8px; cursor: pointer; transition: border-color 0.15s, background 0.15s; user-select: none; font-size: 14px; }
+.ob-industry-card:hover { border-color: var(--accent); background: rgba(37,99,235,0.03); }
+.ob-industry-card.selected { border-color: var(--accent); background: rgba(37,99,235,0.06); }
+.ob-industry-card .ob-ic-icon { font-size: 22px; }
+.ob-industry-card .ob-ic-check { display: none; margin-left: auto; color: var(--accent); font-size: 16px; font-weight: 700; }
+.ob-industry-card.selected .ob-ic-check { display: inline; }
+.ob-tags { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: #fff; min-height: 42px; cursor: text; }
+.ob-tags:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+.ob-tag { display: inline-flex; align-items: center; gap: 4px; background: var(--score-mid-bg); color: var(--accent); padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 500; }
+.ob-tag button { background: none; border: none; cursor: pointer; color: var(--accent); font-size: 14px; padding: 0; line-height: 1; opacity: 0.6; }
+.ob-tag button:hover { opacity: 1; }
+.ob-tags input { border: none; outline: none; flex: 1; min-width: 120px; font-size: 14px; padding: 2px 4px; background: transparent; }
+.ob-suggestions { position: absolute; z-index: 20; background: #fff; border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); max-height: 200px; overflow-y: auto; display: none; }
+.ob-suggestions.open { display: block; }
+.ob-suggestions div { padding: 8px 12px; cursor: pointer; font-size: 13px; }
+.ob-suggestions div:hover, .ob-suggestions div.highlighted { background: var(--row-alt); }
+.ob-preview-tabs { display: flex; gap: 0; margin-bottom: 0; }
+.ob-preview-tab { padding: 8px 20px; border: 1px solid var(--border); border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 13px; font-weight: 500; background: var(--row-alt); color: var(--muted); }
+.ob-preview-tab.active { background: #fff; color: var(--fg); border-bottom-color: #fff; position: relative; z-index: 1; }
+.ob-preview-panel { border: 1px solid var(--border); border-radius: 0 6px 6px 6px; background: #fff; padding: 0; max-height: 400px; overflow: auto; position: relative; top: -1px; }
+.ob-preview-panel table { font-size: 12.5px; border-collapse: separate; border-spacing: 0; }
+.ob-preview-panel thead th { position: sticky; top: 0; background: #fff; z-index: 2; padding: 8px 6px; border-bottom: 2px solid var(--border); }
+.ob-preview-panel .disabled-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; }
+.ob-preview-wrap { position: relative; }
+.ob-upload-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 40px 20px; text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; margin-bottom: 16px; }
+.ob-upload-zone:hover, .ob-upload-zone.dragover { border-color: var(--accent); background: rgba(37,99,235,0.03); }
+.ob-upload-zone .ob-upload-icon { font-size: 36px; margin-bottom: 8px; }
+.ob-upload-zone p { margin: 4px 0; color: var(--muted); font-size: 14px; }
+.ob-upload-zone .ob-upload-name { color: var(--high); font-weight: 600; }
+.ob-comp-row { display: flex; gap: 12px; align-items: end; }
+.ob-comp-row > .ob-field:first-child { flex: 2; }
+.ob-comp-row > .ob-field:last-child { flex: 1; }
+.ob-done-check { display: flex; align-items: center; gap: 10px; padding: 10px 0; font-size: 14px; }
+.ob-done-check .ob-check { color: var(--high); font-size: 18px; }
+.ob-done-check .ob-skip { color: var(--muted); font-size: 18px; }
+.ob-manual-link { text-align: center; margin-top: 12px; }
+.ob-manual-link a { color: var(--muted); font-size: 13px; text-decoration: underline; }
+.ob-section-title { font-size: 14px; font-weight: 600; margin: 24px 0 8px; color: var(--fg); }
+.ob-or-divider { text-align: center; color: var(--muted); font-size: 13px; margin: 16px 0; }
+.ob-done-actions { display: flex; gap: 12px; justify-content: center; margin-top: 24px; }
+</style>
+</head>
+<body>
+<main class="onboarding">
+
+<!-- Step 0: Welcome + Preview -->
+<div class="ob-step active" data-step="0">
+  <div class="ob-hero">
+    <div class="ob-icon">💼</div>
+    <h1>Ready to get the job?</h1>
+    <p>Your entire job search in one place — from first scan to signed offer.</p>
+  </div>
+  <div style="max-width:620px;margin:0 auto 28px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;text-align:center;font-size:13px;">
+    <div><strong style="display:block;font-size:20px;margin-bottom:4px">🔍</strong><strong>Scan & Score</strong><br><span style="color:var(--muted)">Finds open roles and scores each one against your profile so you focus on the best fits.</span></div>
+    <div><strong style="display:block;font-size:20px;margin-bottom:4px">📄</strong><strong>Tailored Apply Packs</strong><br><span style="color:var(--muted)">Generates a custom resume, cover letter, and application answers for every role — ready to paste.</span></div>
+    <div><strong style="display:block;font-size:20px;margin-bottom:4px">📋</strong><strong>Track Everything</strong><br><span style="color:var(--muted)">One dashboard from application to offer. Never lose track of where you stand.</span></div>
+  </div>
+  <p style="text-align:center;font-weight:600;margin-bottom:12px;">Here's what your dashboard will look like:</p>
+  <div class="ob-preview-tabs">
+    <div class="ob-preview-tab active" onclick="switchPreview('tracker')">Tracker</div>
+    <div class="ob-preview-tab" onclick="switchPreview('triage')">Triage</div>
+  </div>
+  <div class="ob-preview-wrap">
+    <div class="disabled-overlay"></div>
+    <div class="ob-preview-panel" id="preview-tracker">${previewTrackerHtml}</div>
+    <div class="ob-preview-panel" id="preview-triage" style="display:none">${previewTriageHtml}</div>
+  </div>
+  <div class="ob-actions" style="justify-content:center;">
+    <button class="ob-btn ob-btn-primary" onclick="goStep(1)">Get Started</button>
+  </div>
+  <div class="ob-manual-link"><a href="https://github.com/adrianmb0/GetTheJob#first-time-setup" target="_blank">I prefer to set up manually</a></div>
+</div>
+
+<!-- Step 1: Profile -->
+<div class="ob-step" data-step="1">
+  <div class="ob-progress"><div class="dot current"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+  <h2 style="text-align:center;margin-top:0">About You</h2>
+  <p class="muted" style="text-align:center">Basic info for your profile. You can always edit this later.</p>
+  <div class="ob-row">
+    <div class="ob-field"><label>Full Name</label><input type="text" id="ob-name" placeholder="Jane Smith"></div>
+    <div class="ob-field"><label>Email</label><input type="email" id="ob-email" placeholder="jane@example.com"></div>
+  </div>
+  <div class="ob-row">
+    <div class="ob-field"><label>Location</label><input type="text" id="ob-location" placeholder="San Francisco, CA"></div>
+    <div class="ob-field"><label>LinkedIn <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input type="text" id="ob-linkedin" placeholder="linkedin.com/in/yourname"></div>
+  </div>
+  <div class="ob-actions">
+    <button class="ob-btn ob-btn-secondary" onclick="goStep(0)">Back</button>
+    <button class="ob-btn ob-btn-primary" onclick="goStep(2)">Next</button>
+  </div>
+</div>
+
+<!-- Step 2: Industry, Roles, Comp -->
+<div class="ob-step" data-step="2">
+  <div class="ob-progress"><div class="dot done"></div><div class="dot current"></div><div class="dot"></div><div class="dot"></div></div>
+  <h2 style="text-align:center;margin-top:0">What Are You Looking For?</h2>
+  <p class="muted" style="text-align:center">Select your field and target roles so we can find the right jobs for you.</p>
+
+  <div class="ob-section-title">Industry / Field</div>
+  <div class="ob-industry-grid" id="ob-industries">
+    ${INDUSTRIES.map(ind => `<div class="ob-industry-card" data-id="${ind.id}" onclick="toggleIndustry(this)"><span class="ob-ic-icon">${ind.icon}</span><span>${escapeHtml(ind.label)}</span><span class="ob-ic-check">✓</span></div>`).join('')}
+    <div id="ob-other-input" style="display:none;margin-top:8px"><input type="text" id="ob-other-text" placeholder="Describe your field (e.g. Nonprofit, Aerospace...)" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px"></div>
+  </div>
+
+  <div class="ob-section-title" style="margin-top:28px">Target Roles</div>
+  <div class="ob-hint" style="font-size:12px;color:var(--muted);margin-bottom:6px">Type a role and press Enter. Suggestions update based on your selected industries.</div>
+  <div style="position:relative">
+    <div class="ob-tags" id="ob-roles-container" onclick="document.getElementById('ob-roles-input').focus()">
+      <input type="text" id="ob-roles-input" placeholder="e.g. Product Manager, Data Analyst..." autocomplete="off">
+    </div>
+    <div class="ob-suggestions" id="ob-roles-suggestions"></div>
+  </div>
+
+  <div class="ob-section-title" style="margin-top:28px">Compensation Target <span style="font-weight:400;color:var(--muted)">(optional)</span></div>
+  <div class="ob-comp-row">
+    <div class="ob-field" style="margin:0"><input type="text" id="ob-comp" placeholder="$120K-180K"></div>
+    <div class="ob-field" style="margin:0">
+      <select id="ob-currency"><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option><option value="CHF">CHF</option><option value="CAD">CAD</option><option value="AUD">AUD</option><option value="Other">Other</option></select>
+    </div>
+  </div>
+
+  <div class="ob-actions">
+    <button class="ob-btn ob-btn-secondary" onclick="goStep(1)">Back</button>
+    <button class="ob-btn ob-btn-primary" onclick="goStep(3)">Next</button>
+  </div>
+</div>
+
+<!-- Step 3: CV -->
+<div class="ob-step" data-step="3">
+  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot current"></div><div class="dot"></div></div>
+  <h2 style="text-align:center;margin-top:0">Your Resume</h2>
+  <p class="muted" style="text-align:center">Upload your resume or paste it below. This helps score job fit and generate tailored applications.</p>
+
+  <div class="ob-upload-zone" id="ob-upload-zone">
+    <div class="ob-upload-icon">📄</div>
+    <p><strong>Drop your resume here</strong> or click to browse</p>
+    <p style="font-size:12px">Supports PDF files</p>
+    <p class="ob-upload-name" id="ob-upload-name" style="display:none"></p>
+    <input type="file" id="ob-file-input" accept=".pdf" style="display:none">
+  </div>
+
+  <div class="ob-or-divider">— or paste as Markdown —</div>
+
+  <div class="ob-field">
+    <textarea id="ob-cv" placeholder="# Your Name&#10;&#10;**Location:** City, State&#10;**Email:** you@example.com&#10;&#10;## Professional Summary&#10;&#10;Brief description of your background...&#10;&#10;## Work Experience&#10;&#10;### Company — Role&#10;*2022-Present*&#10;&#10;- Key achievement 1&#10;- Key achievement 2"></textarea>
+  </div>
+
+  <div class="ob-actions">
+    <button class="ob-btn ob-btn-secondary" onclick="goStep(2)">Back</button>
+    <button class="ob-btn ob-btn-primary" onclick="completeOnboarding(false, this)">Finish Setup</button>
+    <button class="ob-btn ob-btn-secondary" onclick="completeOnboarding(true, this)" style="font-size:13px">Skip CV for now</button>
+  </div>
+</div>
+
+<!-- Step 4: Done -->
+<div class="ob-step" data-step="4">
+  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div></div>
+  <div style="text-align:center;margin-bottom:24px">
+    <div style="font-size:48px;margin-bottom:8px">🎉</div>
+    <h2 style="margin:0 0 8px">You're All Set!</h2>
+    <p class="muted">Your workspace is configured and ready to go.</p>
+  </div>
+  <div id="ob-done-list"></div>
+  <div class="ob-done-actions">
+    <a href="/" class="ob-btn ob-btn-primary" style="text-decoration:none">Go to Dashboard</a>
+  </div>
+</div>
+
+</main>
+
+<script>
+const INDUSTRIES = ${industriesJson};
+const ROLE_SUGGESTIONS = ${roleSuggestionsJson};
+const PREVIEW_MODE = ${previewMode ? 'true' : 'false'};
+
+const state = {
+  step: 0,
+  industries: [],
+  roles: [],
+  uploadedFile: null,
+  uploadedFileName: '',
+};
+
+function goStep(n) {
+  if (n === 2 && state.step === 1) {
+    if (!document.getElementById('ob-name').value.trim()) {
+      document.getElementById('ob-name').focus();
+      return;
+    }
+    if (!document.getElementById('ob-email').value.trim()) {
+      document.getElementById('ob-email').focus();
+      return;
+    }
+  }
+  document.querySelectorAll('.ob-step').forEach(el => el.classList.remove('active'));
+  document.querySelector('[data-step="' + n + '"]').classList.add('active');
+  state.step = n;
+  window.scrollTo(0, 0);
+}
+
+function switchPreview(view) {
+  document.querySelectorAll('.ob-preview-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('preview-tracker').style.display = view === 'tracker' ? '' : 'none';
+  document.getElementById('preview-triage').style.display = view === 'triage' ? '' : 'none';
+  event.target.classList.add('active');
+}
+
+function toggleIndustry(el) {
+  const id = el.dataset.id;
+  el.classList.toggle('selected');
+  if (el.classList.contains('selected')) {
+    if (!state.industries.includes(id)) state.industries.push(id);
+  } else {
+    state.industries = state.industries.filter(i => i !== id);
+  }
+  const otherInput = document.getElementById('ob-other-input');
+  if (otherInput) otherInput.style.display = state.industries.includes('other') ? '' : 'none';
+  updateSuggestions();
+}
+
+function addRole(role) {
+  role = role.trim();
+  if (!role || state.roles.includes(role)) return;
+  state.roles.push(role);
+  const tag = document.createElement('span');
+  tag.className = 'ob-tag';
+  tag.innerHTML = role + '<button onclick="removeRole(this, \\'' + role.replace(/'/g, "\\\\'") + '\\')">&times;</button>';
+  const input = document.getElementById('ob-roles-input');
+  input.parentNode.insertBefore(tag, input);
+  input.value = '';
+  closeSuggestions();
+}
+
+function removeRole(btn, role) {
+  state.roles = state.roles.filter(r => r !== role);
+  btn.parentNode.remove();
+}
+
+let sugHighlight = -1;
+function updateSuggestions() {
+  const input = document.getElementById('ob-roles-input');
+  const val = input.value.trim().toLowerCase();
+  if (!val) { closeSuggestions(); return; }
+  let all = [];
+  const sources = state.industries.length > 0 ? state.industries : Object.keys(ROLE_SUGGESTIONS);
+  sources.forEach(id => { if (ROLE_SUGGESTIONS[id]) all = all.concat(ROLE_SUGGESTIONS[id]); });
+  all = [...new Set(all)].filter(r => r.toLowerCase().includes(val) && !state.roles.includes(r)).slice(0, 8);
+  const box = document.getElementById('ob-roles-suggestions');
+  if (all.length === 0) { closeSuggestions(); return; }
+  sugHighlight = -1;
+  box.innerHTML = all.map((r, i) => '<div data-idx="' + i + '" onmousedown="addRole(\\'' + r.replace(/'/g, "\\\\'") + '\\')">' + r + '</div>').join('');
+  box.classList.add('open');
+  const rect = document.getElementById('ob-roles-container').getBoundingClientRect();
+  box.style.width = rect.width + 'px';
+  box.style.left = '0';
+  box.style.top = (rect.height + 4) + 'px';
+}
+
+function closeSuggestions() {
+  document.getElementById('ob-roles-suggestions').classList.remove('open');
+  sugHighlight = -1;
+}
+
+const rolesInput = document.getElementById('ob-roles-input');
+rolesInput.addEventListener('input', updateSuggestions);
+rolesInput.addEventListener('keydown', (e) => {
+  const box = document.getElementById('ob-roles-suggestions');
+  const items = box.querySelectorAll('div');
+  if (e.key === 'ArrowDown') { e.preventDefault(); sugHighlight = Math.min(sugHighlight + 1, items.length - 1); highlightSug(items); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); sugHighlight = Math.max(sugHighlight - 1, 0); highlightSug(items); }
+  else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (sugHighlight >= 0 && items[sugHighlight]) addRole(items[sugHighlight].textContent);
+    else if (rolesInput.value.trim()) addRole(rolesInput.value);
+  }
+  else if (e.key === 'Backspace' && !rolesInput.value && state.roles.length > 0) {
+    const last = state.roles.pop();
+    const tags = document.querySelectorAll('.ob-tag');
+    if (tags.length) tags[tags.length - 1].remove();
+  }
+});
+rolesInput.addEventListener('blur', () => setTimeout(closeSuggestions, 150));
+
+function highlightSug(items) {
+  items.forEach((el, i) => el.classList.toggle('highlighted', i === sugHighlight));
+}
+
+// File upload
+const uploadZone = document.getElementById('ob-upload-zone');
+const fileInput = document.getElementById('ob-file-input');
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFile(fileInput.files[0]); });
+
+function handleFile(file) {
+  if (!file.name.toLowerCase().endsWith('.pdf')) { alert('Please upload a PDF file.'); return; }
+  state.uploadedFile = file;
+  state.uploadedFileName = file.name;
+  const nameEl = document.getElementById('ob-upload-name');
+  nameEl.textContent = '✓ ' + file.name;
+  nameEl.style.display = '';
+}
+
+async function completeOnboarding(skipCv, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = PREVIEW_MODE ? 'Preview...' : 'Setting up...'; }
+
+  if (PREVIEW_MODE) {
+    const list = document.getElementById('ob-done-list');
+    list.innerHTML = [
+      { label: 'config/profile.yml', ok: true },
+      { label: 'portals.yml', ok: true },
+      { label: 'cv.md', ok: !skipCv },
+      { label: 'data/ directory', ok: true },
+    ].map(item =>
+      '<div class="ob-done-check"><span class="' + (item.ok ? 'ob-check' : 'ob-skip') + '">' + (item.ok ? '✓' : '⏭') + '</span> ' + item.label + (item.ok ? '' : ' <span class="muted">— skipped, add later</span>') + '</div>'
+    ).join('');
+    const actionsEl = document.querySelector('[data-step="4"] .ob-done-actions');
+    if (actionsEl) actionsEl.innerHTML = '<a href="/" class="ob-btn ob-btn-secondary" style="text-decoration:none">Back to Dashboard</a><span class="muted" style="padding:10px">Preview complete — no files were changed.</span>';
+    goStep(4);
+    return;
+  }
+
+  const payload = {
+    name: document.getElementById('ob-name').value.trim(),
+    email: document.getElementById('ob-email').value.trim(),
+    location: document.getElementById('ob-location').value.trim(),
+    linkedin: document.getElementById('ob-linkedin').value.trim(),
+    industries: state.industries,
+    roles: state.roles,
+    comp: document.getElementById('ob-comp').value.trim(),
+    currency: document.getElementById('ob-currency').value,
+    cv: skipCv ? '' : document.getElementById('ob-cv').value,
+  };
+
+  if (state.uploadedFile && !skipCv) {
+    const formData = new FormData();
+    formData.append('pdf', state.uploadedFile);
+    formData.append('payload', JSON.stringify(payload));
+    try {
+      const res = await fetch('/api/onboarding/complete', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!data.ok) { alert('Setup failed: ' + (data.error || 'unknown')); if (btn) { btn.disabled = false; btn.textContent = 'Finish Setup'; } return; }
+    } catch (e) { alert('Setup failed: ' + e.message); if (btn) { btn.disabled = false; btn.textContent = 'Finish Setup'; } return; }
+  } else {
+    try {
+      const res = await fetch('/api/onboarding/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!data.ok) { alert('Setup failed: ' + (data.error || 'unknown')); if (btn) { btn.disabled = false; btn.textContent = 'Finish Setup'; } return; }
+    } catch (e) { alert('Setup failed: ' + e.message); if (btn) { btn.disabled = false; btn.textContent = 'Finish Setup'; } return; }
+  }
+
+  const list = document.getElementById('ob-done-list');
+  list.innerHTML = [
+    { label: 'config/profile.yml', ok: true },
+    { label: 'portals.yml', ok: true },
+    { label: 'cv.md', ok: !skipCv && (!!payload.cv || !!state.uploadedFile) },
+    { label: 'data/ directory', ok: true },
+  ].map(item =>
+    '<div class="ob-done-check"><span class="' + (item.ok ? 'ob-check' : 'ob-skip') + '">' + (item.ok ? '✓' : '⏭') + '</span> ' + item.label + (item.ok ? '' : ' <span class="muted">— skipped, add later</span>') + '</div>'
+  ).join('');
+
+  goStep(4);
+}
+</script>
+</body>
+</html>`;
+}
+
 // ----- parsers -----
 
 function parseApplicationsMd(text) {
@@ -808,6 +1320,57 @@ function readJsonBody(req) {
     req.on('end', () => {
       if (!data) return resolve({});
       try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+    });
+    req.on('error', reject);
+  });
+}
+
+function readOnboardingBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', chunk => { data += chunk; if (data.length > 500_000) { req.destroy(); reject(new Error('payload too large')); } });
+    req.on('end', () => { try { resolve(JSON.parse(data || '{}')); } catch (e) { reject(e); } });
+    req.on('error', reject);
+  });
+}
+
+function readMultipart(req, contentType) {
+  return new Promise((resolve, reject) => {
+    const m = contentType.match(/boundary=(?:"([^"]+)"|([^\s;]+))/);
+    if (!m) return reject(new Error('no boundary'));
+    const boundary = m[1] || m[2];
+    const chunks = [];
+    let len = 0;
+    req.on('data', chunk => { chunks.push(chunk); len += chunk.length; if (len > 10_000_000) { req.destroy(); reject(new Error('too large')); } });
+    req.on('end', () => {
+      const buf = Buffer.concat(chunks);
+      const sep = Buffer.from('--' + boundary);
+      const fields = {};
+      const files = {};
+      let pos = 0;
+      while (pos < buf.length) {
+        const start = buf.indexOf(sep, pos);
+        if (start === -1) break;
+        const afterSep = start + sep.length;
+        if (buf[afterSep] === 0x2d && buf[afterSep + 1] === 0x2d) break;
+        const headerEnd = buf.indexOf('\r\n\r\n', afterSep);
+        if (headerEnd === -1) break;
+        const headerStr = buf.slice(afterSep, headerEnd).toString();
+        const bodyStart = headerEnd + 4;
+        const nextSep = buf.indexOf(sep, bodyStart);
+        const bodyEnd = nextSep === -1 ? buf.length : nextSep - 2;
+        const nameMatch = headerStr.match(/name="([^"]+)"/);
+        const filenameMatch = headerStr.match(/filename="([^"]+)"/);
+        if (nameMatch) {
+          if (filenameMatch) {
+            files[nameMatch[1]] = buf.slice(bodyStart, bodyEnd);
+          } else {
+            fields[nameMatch[1]] = buf.slice(bodyStart, bodyEnd).toString();
+          }
+        }
+        pos = nextSep === -1 ? buf.length : nextSep;
+      }
+      resolve({ fields, files });
     });
     req.on('error', reject);
   });
@@ -1819,6 +2382,25 @@ const server = createServer(async (req, res) => {
     const pathname = url.split('?')[0];
     const query = parseQuery(url);
 
+    // First-run: redirect to onboarding if profile.yml doesn't exist
+    const profileExists = existsSync(join(ROOT, 'config', 'profile.yml'));
+    if (!profileExists && (pathname === '/' || pathname === '/index.html' || pathname === '/triage')) {
+      res.writeHead(302, { Location: '/onboarding' });
+      res.end();
+      return;
+    }
+
+    if (pathname === '/onboarding') {
+      const isPreview = query.preview === '1';
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      if (profileExists && !isPreview) {
+        res.end(shell('Setup', '<h1>Already Set Up</h1><p>Your profile is configured. <a href="/">Go to your dashboard</a>.</p><p class="muted">To reconfigure, delete <code>config/profile.yml</code> and reload this page.</p>'));
+      } else {
+        res.end(renderOnboarding(isPreview));
+      }
+      return;
+    }
+
     if (pathname === '/' || pathname === '/index.html') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(renderTracker(query));
@@ -1845,6 +2427,80 @@ const server = createServer(async (req, res) => {
       serveOutputPdf(query, res);
       return;
     }
+    // ----- Onboarding API -----
+    if (pathname === '/api/onboarding/complete' && req.method === 'POST') {
+      try {
+        const ct = (req.headers['content-type'] || '');
+        let payload, pdfBuf;
+
+        if (ct.includes('multipart/form-data')) {
+          const { fields, files } = await readMultipart(req, ct);
+          payload = JSON.parse(fields.payload || '{}');
+          if (files.pdf) pdfBuf = files.pdf;
+        } else {
+          payload = await readOnboardingBody(req);
+        }
+
+        const { name, email, location, linkedin, industries, roles, comp, currency, cv } = payload;
+
+        mkdirSync(join(ROOT, 'config'), { recursive: true });
+        mkdirSync(join(ROOT, 'data'), { recursive: true });
+
+        const esc = (s) => {
+          if (s == null) return '""';
+          const v = String(s);
+          if (/[:#"'\[\]{},&*?|><!%@`]/.test(v) || v.trim() !== v || v === '') return '"' + v.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+          return '"' + v + '"';
+        };
+
+        let profileYml = '# GetTheJob Profile — generated by onboarding wizard\n\n';
+        profileYml += 'candidate:\n';
+        profileYml += '  full_name: ' + esc(name) + '\n';
+        profileYml += '  email: ' + esc(email) + '\n';
+        profileYml += '  location: ' + esc(location) + '\n';
+        if (linkedin) profileYml += '  linkedin: ' + esc(linkedin) + '\n';
+        profileYml += '\ntarget_roles:\n';
+        profileYml += '  primary:\n';
+        (roles || []).forEach(r => { profileYml += '    - ' + esc(r) + '\n'; });
+        if (comp) {
+          profileYml += '\ncompensation:\n';
+          profileYml += '  target_range: ' + esc(comp) + '\n';
+          profileYml += '  currency: ' + esc(currency || 'USD') + '\n';
+        }
+        writeFileSync(join(ROOT, 'config', 'profile.yml'), profileYml);
+
+        const positive = (roles || []).flatMap(r => r.split(/\s*,\s*|\s+(?:and|or|\/)\s+/i)).filter(Boolean);
+        let portalsYml = '# GetTheJob Portals — generated by onboarding wizard\n';
+        portalsYml += '# Edit this file to add companies and customize title filters.\n\n';
+        portalsYml += 'title_filter:\n';
+        portalsYml += '  positive:\n';
+        positive.forEach(kw => { portalsYml += '    - ' + esc(kw) + '\n'; });
+        portalsYml += '  negative:\n';
+        ['Junior', 'Intern', 'Internship'].forEach(kw => { portalsYml += '    - ' + esc(kw) + '\n'; });
+        portalsYml += '  seniority_boost:\n';
+        ['Senior', 'Staff', 'Principal', 'Lead', 'Head'].forEach(kw => { portalsYml += '    - ' + esc(kw) + '\n'; });
+        portalsYml += '\ntracked_companies: []\n';
+        portalsYml += '\nsearch_queries: []\n';
+        writeFileSync(join(ROOT, 'portals.yml'), portalsYml);
+
+        if (cv) {
+          writeFileSync(join(ROOT, 'cv.md'), cv);
+        }
+        if (pdfBuf) {
+          writeFileSync(join(ROOT, 'cv.pdf'), pdfBuf);
+        }
+
+        if (!existsSync(join(ROOT, 'data', 'applications.md'))) {
+          writeFileSync(join(ROOT, 'data', 'applications.md'),
+            '# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n');
+        }
+
+        return sendJson(res, 200, { ok: true });
+      } catch (e) {
+        return sendJson(res, 500, { ok: false, error: e.message });
+      }
+    }
+
     // ----- API endpoints -----
     if (pathname === '/api/report' && req.method === 'GET') {
       const file = query.file || '';
