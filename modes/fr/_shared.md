@@ -1,10 +1,10 @@
-# Contexte partage -- career-ops (Francais)
+# Contexte partage -- get-the-job (Francais)
 
 <!-- ============================================================
      PERSONNALISATION DE CE FICHIER
      ============================================================
      Ce fichier contient le contexte partage pour tous les modes
-     career-ops en version francaise. Avant d'utiliser career-ops, tu DOIS :
+     get-the-job en version francaise. Avant d'utiliser get-the-job, tu DOIS :
      1. Remplir config/profile.yml avec tes informations personnelles
      2. Creer cv.md a la racine du projet (CV en Markdown)
      3. (Optionnel) Creer article-digest.md avec tes proof points

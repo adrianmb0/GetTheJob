@@ -25,7 +25,7 @@ Include Block G in the saved report. Add `**Legitimacy:** {tier}` to the report 
 
 ## Paso 3 — DEFERRED: Do NOT generate PDF here
 
-**Tailored CV PDF and cover letter are generated only when the user explicitly applies** (via `/career-ops apply` or saying "apply to {company}"). This avoids burning tokens on PDFs the user never uses.
+**Tailored CV PDF and cover letter are generated only when the user explicitly applies** (via `/get-the-job apply` or saying "apply to {company}"). This avoids burning tokens on PDFs the user never uses.
 
 Behavior in this step:
 - Mark the tracker row as `PDF: ❌` initially.

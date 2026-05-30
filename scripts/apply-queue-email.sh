@@ -8,8 +8,8 @@
 
 set -euo pipefail
 
-REPO="${GETTHEJOB_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
-RECIPIENT="${GETTHEJOB_EMAIL:-you@example.com}"
+REPO="/Users/adrianmelobueno/Documents/GitHub/GetTheJob"
+RECIPIENT="adrian.mb97@gmail.com"
 THRESHOLD="4.0"
 APPLICATIONS="$REPO/data/applications.md"
 TRIAGE="$REPO/data/triage-scores.tsv"
@@ -106,7 +106,7 @@ This means either:
   - No new postings >=${THRESHOLD} since last triage, AND
   - All previously-queued postings have been applied to or skipped.
 
-If you weren't expecting that, run /career-ops morning-batch to scan + triage fresh listings.
+If you weren't expecting that, run /get-the-job morning-batch to scan + triage fresh listings.
 EOF
 else
   TOP=$(echo "$MERGED" | head -1)
@@ -119,7 +119,7 @@ else
   {
     echo "Top priority: $TOP_COMPANY - $TOP_ROLE ($TOP_SCORE/5)"
     echo
-    echo "Apply window: 8-10 AM. Open Claude Code, run /career-ops apply <url> for each."
+    echo "Apply window: 8-10 AM. Open Claude Code, run /get-the-job apply <url> for each."
     echo
 
     if [[ "$NEW_COUNT" -gt 0 ]]; then
@@ -136,7 +136,7 @@ else
     if [[ "$CARRIED_COUNT" -gt 0 ]]; then
       echo "## CARRIED OVER ($CARRIED_COUNT postings)"
       echo
-      echo "These were on a previous email. Apply, /career-ops skip <url>, or let them auto-purge after 14 days."
+      echo "These were on a previous email. Apply, /get-the-job skip <url>, or let them auto-purge after 14 days."
       echo
       echo "| Score | Company | Role | URL | Source |"
       echo "|-------|---------|------|-----|--------|"
@@ -150,15 +150,15 @@ else
     echo
     echo "Source legend:"
     echo "  apps    = full A-G report exists in reports/ (deeply evaluated)"
-    echo "  triage  = lightweight score only; full report generated on /career-ops apply"
+    echo "  triage  = lightweight score only; full report generated on /get-the-job apply"
     echo
     echo "Per posting:"
     echo "  1. Open URL in browser"
-    echo "  2. /career-ops apply <url>     (generates full report if needed, drafts answers)"
+    echo "  2. /get-the-job apply <url>     (generates full report if needed, drafts answers)"
     echo "  3. Review, submit"
     echo "  4. Auto-marked Applied; URL drops from queue"
     echo
-    echo "To remove without applying: /career-ops skip <url>"
+    echo "To remove without applying: /get-the-job skip <url>"
   } > "$BODY_FILE"
 fi
 

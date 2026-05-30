@@ -163,7 +163,7 @@ async function fetchJson(url) {
   try {
     const res = await fetch(url, {
       signal: controller.signal,
-      headers: { 'User-Agent': 'career-ops fetch-jd/1.0' },
+      headers: { 'User-Agent': 'get-the-job fetch-jd/1.0' },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();

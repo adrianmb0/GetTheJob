@@ -1,0 +1,37 @@
+#!/bin/bash
+# GetTheJob launcher — starts the dashboard server and opens the browser
+
+# Ensure PATH includes common install locations
+export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin:$PATH"
+[ -f "$HOME/.zprofile" ] && source "$HOME/.zprofile" 2>/dev/null
+[ -f "$HOME/.bash_profile" ] && source "$HOME/.bash_profile" 2>/dev/null
+[ -s "$HOME/.nvm/nvm.sh" ] && source "$HOME/.nvm/nvm.sh" 2>/dev/null
+
+# Resolve project directory (the .app lives inside the project)
+APP_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+cd "$APP_DIR" || exit 1
+
+# Check Node.js
+if ! command -v node &>/dev/null; then
+  osascript -e 'display alert "GetTheJob" message "Node.js not found. Install from https://nodejs.org" as critical'
+  exit 1
+fi
+
+# Kill any existing server on the same port
+lsof -ti:3737 | xargs kill 2>/dev/null || true
+sleep 0.5
+
+# Start the server (morning batch auto-launches inside server.mjs)
+node server.mjs &
+SERVER_PID=$!
+sleep 1
+
+# Open the dashboard
+open "http://localhost:3737"
+
+# Auto-minimize the Terminal window
+sleep 0.5
+osascript -e 'tell application "Terminal" to set miniaturized of front window to true' 2>/dev/null
+
+# Keep the app alive until the server exits
+wait $SERVER_PID

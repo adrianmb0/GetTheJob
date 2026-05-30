@@ -1,35 +1,39 @@
-node_modules/
-.DS_Store
-*.log
-.env
-
-# === User data — NEVER commit personal info ===
+# Personal data (user fills these)
 cv.md
-article-digest.md
-portals.yml
-config/profile.yml
-modes/_profile.md
-
-# User data directories
-data/
-reports/
-output/
-jds/
-interview-prep/
-
-# Batch runtime data (not scripts)
+data/applications.md
+data/pipeline.md
+data/scan-history.tsv
+data/triage-scores.tsv
+data/follow-ups.md
+data/apply/
+reports/*.md
+!reports/.gitkeep
+output/*
+!output/.gitkeep
+batch/logs/*
+!batch/logs/.gitkeep
 batch/batch-state.tsv
 batch/batch-input.tsv
-batch/expired-urls.txt
-batch/failed-urls.txt
-batch/liveness-results.txt
-batch/logs/*.log
-batch/tracker-additions/*.tsv
-batch/tracker-additions/merged/
+batch/tracker-additions/**/*.tsv
+!batch/tracker-additions/.gitkeep
+jds/*
+!jds/.gitkeep
+
+# Config (personal)
+config/profile.yml
+modes/_profile.md
+portals.yml
+article-digest.md
+
+# Node
+node_modules/
+
+# Compiled binaries
+dashboard/career-dashboard
+
+# OS
+.DS_Store
 
 # Backups
 *.bak
 *.bak-*
-
-# OS
-Thumbs.db

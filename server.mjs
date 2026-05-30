@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // GetTheJob — job application dashboard
 // Zero npm deps. Built-ins only: node:http, node:fs, node:path, node:url.
-// Works standalone or pointed at a career-ops data directory.
+// Works standalone or pointed at a get-the-job data directory.
 
 import { createServer } from 'node:http';
 import { readFileSync, writeFileSync, existsSync, statSync, copyFileSync, renameSync, readdirSync, createReadStream, mkdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 const PORT = process.env.PORT || 3737;
 const ROOT = process.env.DATA_DIR
@@ -227,6 +227,7 @@ const CSS = `
   --row-alt: #f5f5f5;
   --header-bg: #ffffff;
   --accent: #2563eb;
+  --on-accent: #fff;
   --high: #16a34a;
   --apply: #2563eb;
   --skip: #9ca3af;
@@ -262,6 +263,10 @@ header.top {
   position: sticky;
   top: 0;
   z-index: 10;
+}
+header.top nav {
+  display: flex;
+  align-items: center;
 }
 header.top nav a {
   margin-right: 16px;
@@ -767,6 +772,7 @@ function shell(title, bodyHtml) {
   <nav>
     <a href="/">Tracker</a>
     <a href="/triage">Triage</a>
+    <button onclick="if(confirm('Shut down GetTheJob server?'))fetch('/api/quit',{method:'POST'}).then(()=>{document.body.innerHTML='<div style=\\'text-align:center;padding:80px;font-size:18px\\'>Server stopped. You can close this tab.</div>'})" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--muted);padding:4px 12px;border-radius:6px;cursor:pointer;font-size:13px;opacity:.7" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.7">Quit</button>
   </nav>
 </header>
 <main class="container">
@@ -853,11 +859,12 @@ function renderOnboarding(previewMode = false) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 ${CSS}
-.onboarding { max-width: 800px; margin: 0 auto; padding: 40px 24px 80px; }
-.ob-hero { text-align: center; margin-bottom: 40px; }
-.ob-hero h1 { font-size: 32px; margin: 0 0 8px; }
-.ob-hero .ob-icon { font-size: 48px; margin-bottom: 12px; }
-.ob-hero p { color: var(--muted); font-size: 16px; margin: 0; }
+.onboarding { max-width: 1100px; margin: 0 auto; padding: 20px 32px 40px; }
+.ob-step[data-step="1"], .ob-step[data-step="2"], .ob-step[data-step="3"], .ob-step[data-step="4"], .ob-step[data-step="5"] { max-width: 800px; margin: 0 auto; }
+.ob-hero { text-align: center; margin-bottom: 12px; }
+.ob-hero h1 { font-size: 26px; margin: 0 0 4px; }
+.ob-hero .ob-icon { font-size: 32px; margin-bottom: 4px; }
+.ob-hero p { color: var(--muted); font-size: 14px; margin: 0; }
 .ob-step { display: none; }
 .ob-step.active { display: block; }
 .ob-progress { display: flex; justify-content: center; gap: 8px; margin: 0 0 32px; }
@@ -899,7 +906,7 @@ ${CSS}
 .ob-preview-tabs { display: flex; gap: 0; margin-bottom: 0; }
 .ob-preview-tab { padding: 8px 20px; border: 1px solid var(--border); border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 13px; font-weight: 500; background: var(--row-alt); color: var(--muted); }
 .ob-preview-tab.active { background: #fff; color: var(--fg); border-bottom-color: #fff; position: relative; z-index: 1; }
-.ob-preview-panel { border: 1px solid var(--border); border-radius: 0 6px 6px 6px; background: #fff; padding: 0; max-height: 400px; overflow: auto; position: relative; top: -1px; }
+.ob-preview-panel { border: 1px solid var(--border); border-radius: 0 6px 6px 6px; background: #fff; padding: 0; max-height: 260px; overflow: auto; position: relative; top: -1px; }
 .ob-preview-panel table { font-size: 12.5px; border-collapse: separate; border-spacing: 0; }
 .ob-preview-panel thead th { position: sticky; top: 0; background: #fff; z-index: 2; padding: 8px 6px; border-bottom: 2px solid var(--border); }
 .ob-preview-panel .disabled-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; }
@@ -932,30 +939,29 @@ ${CSS}
     <h1>Ready to get the job?</h1>
     <p>Your entire job search in one place — from first scan to signed offer.</p>
   </div>
-  <div style="max-width:620px;margin:0 auto 28px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;text-align:center;font-size:13px;">
-    <div><strong style="display:block;font-size:20px;margin-bottom:4px">🔍</strong><strong>Scan & Score</strong><br><span style="color:var(--muted)">Finds open roles and scores each one against your profile so you focus on the best fits.</span></div>
-    <div><strong style="display:block;font-size:20px;margin-bottom:4px">📄</strong><strong>Tailored Apply Packs</strong><br><span style="color:var(--muted)">Generates a custom resume, cover letter, and application answers for every role — ready to paste.</span></div>
-    <div><strong style="display:block;font-size:20px;margin-bottom:4px">📋</strong><strong>Track Everything</strong><br><span style="color:var(--muted)">One dashboard from application to offer. Never lose track of where you stand.</span></div>
+  <div style="display:flex;gap:20px;margin-bottom:16px;">
+    <div style="flex:1;text-align:center;padding:14px 10px;background:var(--header-bg);border:1px solid var(--border);border-radius:8px"><div style="font-size:24px;margin-bottom:6px">🔍</div><strong style="font-size:14px">Scan & Score</strong><p style="color:var(--muted);font-size:12px;margin:4px 0 0">Discovers open roles and scores each one against your profile.</p></div>
+    <div style="flex:1;text-align:center;padding:14px 10px;background:var(--header-bg);border:1px solid var(--border);border-radius:8px"><div style="font-size:24px;margin-bottom:6px">📄</div><strong style="font-size:14px">Tailored Apply Packs</strong><p style="color:var(--muted);font-size:12px;margin:4px 0 0">Generates a custom resume, cover letter, and application answers for every role.</p></div>
+    <div style="flex:1;text-align:center;padding:14px 10px;background:var(--header-bg);border:1px solid var(--border);border-radius:8px"><div style="font-size:24px;margin-bottom:6px">📋</div><strong style="font-size:14px">Track Everything</strong><p style="color:var(--muted);font-size:12px;margin:4px 0 0">One dashboard from application to offer. Never lose track.</p></div>
   </div>
-  <p style="text-align:center;font-weight:600;margin-bottom:12px;">Here's what your dashboard will look like:</p>
-  <div class="ob-preview-tabs">
-    <div class="ob-preview-tab active" onclick="switchPreview('tracker')">Tracker</div>
-    <div class="ob-preview-tab" onclick="switchPreview('triage')">Triage</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+    <div class="ob-preview-tabs" style="margin:0">
+      <div class="ob-preview-tab active" onclick="switchPreview('tracker')">Tracker</div>
+      <div class="ob-preview-tab" onclick="switchPreview('triage')">Triage</div>
+    </div>
+    <button class="ob-btn ob-btn-primary" onclick="goStep(1)" style="padding:8px 24px;font-size:14px">Get Started →</button>
   </div>
   <div class="ob-preview-wrap">
     <div class="disabled-overlay"></div>
     <div class="ob-preview-panel" id="preview-tracker">${previewTrackerHtml}</div>
     <div class="ob-preview-panel" id="preview-triage" style="display:none">${previewTriageHtml}</div>
   </div>
-  <div class="ob-actions" style="justify-content:center;">
-    <button class="ob-btn ob-btn-primary" onclick="goStep(1)">Get Started</button>
-  </div>
-  <div class="ob-manual-link"><a href="https://github.com/adrianmb0/GetTheJob#first-time-setup" target="_blank">I prefer to set up manually</a></div>
+  <div class="ob-manual-link" style="margin-top:6px"><a href="https://github.com/adrianmb0/GetTheJob#first-time-setup-manual" target="_blank">I prefer to set up manually</a></div>
 </div>
 
 <!-- Step 1: Profile -->
 <div class="ob-step" data-step="1">
-  <div class="ob-progress"><div class="dot current"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+  <div class="ob-progress"><div class="dot current"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
   <h2 style="text-align:center;margin-top:0">About You</h2>
   <p class="muted" style="text-align:center">Basic info for your profile. You can always edit this later.</p>
   <div class="ob-row">
@@ -974,7 +980,7 @@ ${CSS}
 
 <!-- Step 2: Industry, Roles, Comp -->
 <div class="ob-step" data-step="2">
-  <div class="ob-progress"><div class="dot done"></div><div class="dot current"></div><div class="dot"></div><div class="dot"></div></div>
+  <div class="ob-progress"><div class="dot done"></div><div class="dot current"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
   <h2 style="text-align:center;margin-top:0">What Are You Looking For?</h2>
   <p class="muted" style="text-align:center">Select your field and target roles so we can find the right jobs for you.</p>
 
@@ -1009,7 +1015,7 @@ ${CSS}
 
 <!-- Step 3: CV -->
 <div class="ob-step" data-step="3">
-  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot current"></div><div class="dot"></div></div>
+  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot current"></div><div class="dot"></div><div class="dot"></div></div>
   <h2 style="text-align:center;margin-top:0">Your Resume</h2>
   <p class="muted" style="text-align:center">Upload your resume or paste it below. This helps score job fit and generate tailored applications.</p>
 
@@ -1029,22 +1035,71 @@ ${CSS}
 
   <div class="ob-actions">
     <button class="ob-btn ob-btn-secondary" onclick="goStep(2)">Back</button>
-    <button class="ob-btn ob-btn-primary" onclick="completeOnboarding(false, this)">Finish Setup</button>
-    <button class="ob-btn ob-btn-secondary" onclick="completeOnboarding(true, this)" style="font-size:13px">Skip CV for now</button>
+    <button class="ob-btn ob-btn-primary" onclick="goStep(4)">Next</button>
+    <button class="ob-btn ob-btn-secondary" onclick="state.skipCv=true;goStep(4)" style="font-size:13px">Skip CV for now</button>
   </div>
 </div>
 
-<!-- Step 4: Done -->
+<!-- Step 4: Your Story (optional but valuable) -->
 <div class="ob-step" data-step="4">
-  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div></div>
+  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot current"></div><div class="dot"></div></div>
+  <h2 style="text-align:center;margin-top:0">Your Story</h2>
+  <p class="muted" style="text-align:center">This powers your cover letters and tailored applications. Skip now and add later if you prefer.</p>
+
+  <div class="ob-field">
+    <label>Professional headline</label>
+    <div class="ob-hint">One line that describes who you are. Used as the opening of cover letters.</div>
+    <input type="text" id="ob-headline" placeholder="e.g. ML Engineer turned AI product builder">
+  </div>
+
+  <div class="ob-field">
+    <label>Why are you looking? <span style="font-weight:400;color:var(--muted)">(your exit story)</span></label>
+    <div class="ob-hint">1-2 sentences on what drives your search. This gets woven into cover letters to explain your motivation.</div>
+    <textarea id="ob-exit-story" style="min-height:60px" placeholder="e.g. After 5 years building and scaling a SaaS product, I'm looking to apply that experience at a company working on AI infrastructure."></textarea>
+  </div>
+
+  <div class="ob-field">
+    <label>Top strengths <span style="font-weight:400;color:var(--muted)">(superpowers)</span></label>
+    <div class="ob-hint">3-5 things you're best at. These become bullet points in your tailored materials.</div>
+    <div class="ob-tags" id="ob-strengths-container" onclick="document.getElementById('ob-strengths-input').focus()">
+      <input type="text" id="ob-strengths-input" placeholder="Type a strength and press Enter..." autocomplete="off">
+    </div>
+  </div>
+
+  <div class="ob-field">
+    <label>Key project or achievement <span style="font-weight:400;color:var(--muted)">(proof point)</span></label>
+    <div class="ob-hint">Your best "STAR story" — a project with measurable impact. Used in cover letters and interview prep.</div>
+    <div class="ob-row">
+      <div class="ob-field" style="flex:2;margin:0"><input type="text" id="ob-proof-name" placeholder="Project or achievement name"></div>
+      <div class="ob-field" style="flex:1;margin:0"><input type="text" id="ob-proof-metric" placeholder="Impact metric (e.g. 40% faster)"></div>
+    </div>
+    <textarea id="ob-proof-detail" style="min-height:50px;margin-top:8px" placeholder="Brief description: what you built, what problem it solved, and the result."></textarea>
+  </div>
+
+  <div class="ob-actions">
+    <button class="ob-btn ob-btn-secondary" onclick="goStep(3)">Back</button>
+    <button class="ob-btn ob-btn-primary" onclick="completeOnboarding(false, this)">Finish Setup</button>
+    <button class="ob-btn ob-btn-secondary" onclick="goStep(5);completeOnboarding(true, this)" style="font-size:13px">Skip for now</button>
+  </div>
+</div>
+
+<!-- Step 5: Done + First Scan -->
+<div class="ob-step" data-step="5">
+  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div></div>
   <div style="text-align:center;margin-bottom:24px">
-    <div style="font-size:48px;margin-bottom:8px">🎉</div>
+    <div style="font-size:36px;margin-bottom:4px">🎉</div>
     <h2 style="margin:0 0 8px">You're All Set!</h2>
     <p class="muted">Your workspace is configured and ready to go.</p>
   </div>
   <div id="ob-done-list"></div>
-  <div class="ob-done-actions">
-    <a href="/" class="ob-btn ob-btn-primary" style="text-decoration:none">Go to Dashboard</a>
+  <div class="ob-done-actions" style="flex-direction:column;align-items:center;gap:8px">
+    <button class="ob-btn ob-btn-primary" onclick="runFirstScan(this)" id="ob-scan-btn" style="padding:12px 32px;font-size:15px">Run Your First Scan</button>
+    <p class="muted" style="font-size:12px;margin:0">Discovers jobs matching your profile — takes about a minute.</p>
+    <a href="/" style="color:var(--muted);font-size:13px;margin-top:4px">Skip and go to dashboard</a>
+  </div>
+  <div id="ob-scan-progress" style="display:none;text-align:center;margin-top:16px">
+    <p id="ob-scan-status" style="font-size:14px">Scanning job boards...</p>
+    <div style="width:200px;height:4px;background:var(--border);border-radius:2px;margin:8px auto"><div id="ob-scan-bar" style="height:100%;background:var(--accent);border-radius:2px;width:0%;transition:width 0.5s"></div></div>
   </div>
 </div>
 
@@ -1059,8 +1114,10 @@ const state = {
   step: 0,
   industries: [],
   roles: [],
+  strengths: [],
   uploadedFile: null,
   uploadedFileName: '',
+  skipCv: false,
 };
 
 function goStep(n) {
@@ -1189,22 +1246,108 @@ function handleFile(file) {
   nameEl.style.display = '';
 }
 
-async function completeOnboarding(skipCv, btn) {
+// Strengths tag input
+function removeStrength(btn, val) { state.strengths = state.strengths.filter(s => s !== val); btn.parentNode.remove(); }
+const strengthsInput = document.getElementById('ob-strengths-input');
+if (strengthsInput) {
+  strengthsInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const val = strengthsInput.value.trim();
+      if (!val || state.strengths.includes(val)) return;
+      state.strengths.push(val);
+      const tag = document.createElement('span');
+      tag.className = 'ob-tag';
+      tag.textContent = val;
+      const x = document.createElement('button');
+      x.textContent = '×';
+      x.onclick = function() { removeStrength(this, val); };
+      tag.appendChild(x);
+      strengthsInput.parentNode.insertBefore(tag, strengthsInput);
+      strengthsInput.value = '';
+    }
+    if (e.key === 'Backspace' && !strengthsInput.value && state.strengths.length > 0) {
+      state.strengths.pop();
+      const tags = document.querySelectorAll('#ob-strengths-container .ob-tag');
+      if (tags.length) tags[tags.length - 1].remove();
+    }
+  });
+}
+
+async function runFirstScan(btn) {
+  if (PREVIEW_MODE) {
+    btn.disabled = true;
+    btn.textContent = 'Scanning...';
+    document.getElementById('ob-scan-progress').style.display = '';
+    const bar = document.getElementById('ob-scan-bar');
+    let pct = 0;
+    const iv = setInterval(() => { pct = Math.min(pct + 20, 100); bar.style.width = pct + '%'; }, 400);
+    setTimeout(() => {
+      clearInterval(iv);
+      bar.style.width = '100%';
+      document.getElementById('ob-scan-status').textContent = 'Preview complete — no scan was run.';
+      btn.style.display = 'none';
+    }, 2500);
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Scanning...';
+  document.getElementById('ob-scan-progress').style.display = '';
+  const bar = document.getElementById('ob-scan-bar');
+  try {
+    const res = await fetch('/api/run-scan', { method: 'POST' });
+    const data = await res.json();
+    if (!data.ok) { document.getElementById('ob-scan-status').textContent = 'Scan failed: ' + (data.error || 'unknown'); return; }
+    let pct = 10;
+    bar.style.width = '10%';
+    const poll = setInterval(async () => {
+      try {
+        const sr = await fetch('/api/scan-status');
+        const sd = await sr.json();
+        pct = Math.min(pct + 10, 90);
+        bar.style.width = pct + '%';
+        if (!sd.running) {
+          clearInterval(poll);
+          bar.style.width = '100%';
+          document.getElementById('ob-scan-status').innerHTML = 'Done! <a href="/triage" style="color:var(--accent);font-weight:600">View your results →</a>';
+          btn.style.display = 'none';
+        }
+      } catch (e) { /* keep polling */ }
+    }, 3000);
+  } catch (e) {
+    document.getElementById('ob-scan-status').textContent = 'Scan failed: ' + e.message;
+  }
+}
+
+async function completeOnboarding(skipStory, btn) {
   if (btn) { btn.disabled = true; btn.textContent = PREVIEW_MODE ? 'Preview...' : 'Setting up...'; }
 
-  if (PREVIEW_MODE) {
+  const skipCv = state.skipCv;
+  const headline = (document.getElementById('ob-headline')?.value || '').trim();
+  const exitStory = (document.getElementById('ob-exit-story')?.value || '').trim();
+  const proofName = (document.getElementById('ob-proof-name')?.value || '').trim();
+  const proofMetric = (document.getElementById('ob-proof-metric')?.value || '').trim();
+  const proofDetail = (document.getElementById('ob-proof-detail')?.value || '').trim();
+  const hasNarrative = !skipStory && (headline || exitStory || state.strengths.length > 0 || proofName);
+
+  const buildDoneList = () => {
+    const hasCv = !skipCv && (!!document.getElementById('ob-cv')?.value?.trim() || !!state.uploadedFile);
     const list = document.getElementById('ob-done-list');
     list.innerHTML = [
-      { label: 'config/profile.yml', ok: true },
-      { label: 'portals.yml', ok: true },
-      { label: 'cv.md', ok: !skipCv },
-      { label: 'data/ directory', ok: true },
+      { label: 'Profile (config/profile.yml)', ok: true },
+      { label: 'Job preferences (portals.yml)', ok: true },
+      { label: 'Resume (cv.md)', ok: hasCv },
+      { label: 'Cover letter narrative', ok: hasNarrative },
     ].map(item =>
-      '<div class="ob-done-check"><span class="' + (item.ok ? 'ob-check' : 'ob-skip') + '">' + (item.ok ? '✓' : '⏭') + '</span> ' + item.label + (item.ok ? '' : ' <span class="muted">— skipped, add later</span>') + '</div>'
+      '<div class="ob-done-check"><span class="' + (item.ok ? 'ob-check' : 'ob-skip') + '">' + (item.ok ? '✓' : '⏭') + '</span> ' + item.label + (item.ok ? '' : ' <span class="muted">— add later in config/profile.yml</span>') + '</div>'
     ).join('');
-    const actionsEl = document.querySelector('[data-step="4"] .ob-done-actions');
+  };
+
+  if (PREVIEW_MODE) {
+    buildDoneList();
+    const actionsEl = document.querySelector('[data-step="5"] .ob-done-actions');
     if (actionsEl) actionsEl.innerHTML = '<a href="/" class="ob-btn ob-btn-secondary" style="text-decoration:none">Back to Dashboard</a><span class="muted" style="padding:10px">Preview complete — no files were changed.</span>';
-    goStep(4);
+    goStep(5);
     return;
   }
 
@@ -1218,6 +1361,12 @@ async function completeOnboarding(skipCv, btn) {
     comp: document.getElementById('ob-comp').value.trim(),
     currency: document.getElementById('ob-currency').value,
     cv: skipCv ? '' : document.getElementById('ob-cv').value,
+    headline: headline,
+    exitStory: exitStory,
+    strengths: state.strengths,
+    proofName: proofName,
+    proofMetric: proofMetric,
+    proofDetail: proofDetail,
   };
 
   if (state.uploadedFile && !skipCv) {
@@ -1241,17 +1390,8 @@ async function completeOnboarding(skipCv, btn) {
     } catch (e) { alert('Setup failed: ' + e.message); if (btn) { btn.disabled = false; btn.textContent = 'Finish Setup'; } return; }
   }
 
-  const list = document.getElementById('ob-done-list');
-  list.innerHTML = [
-    { label: 'config/profile.yml', ok: true },
-    { label: 'portals.yml', ok: true },
-    { label: 'cv.md', ok: !skipCv && (!!payload.cv || !!state.uploadedFile) },
-    { label: 'data/ directory', ok: true },
-  ].map(item =>
-    '<div class="ob-done-check"><span class="' + (item.ok ? 'ob-check' : 'ob-skip') + '">' + (item.ok ? '✓' : '⏭') + '</span> ' + item.label + (item.ok ? '' : ' <span class="muted">— skipped, add later</span>') + '</div>'
-  ).join('');
-
-  goStep(4);
+  buildDoneList();
+  goStep(5);
 }
 </script>
 </body>
@@ -1376,13 +1516,13 @@ function readMultipart(req, contentType) {
   });
 }
 
-// Spawn a new Terminal window, cd into the project, run `claude /career-ops apply <url>`.
+// Spawn a new Terminal window, cd into the project, run `claude /get-the-job apply <url>`.
 function spawnTerminalApply(url) {
   if (!isSafeJobUrl(url)) throw new Error('Invalid URL');
   // ROOT is constructed from import.meta.url, so it doesn't contain hostile chars,
   // but escape single quotes defensively.
   const safeRoot = ROOT.replace(/'/g, `'\\''`);
-  const inner = `cd '${safeRoot}' && claude '/career-ops apply ${url}'`;
+  const inner = `cd '${safeRoot}' && claude '/get-the-job apply ${url}'`;
   const script = `tell application "Terminal"\n  activate\n  do script "${inner.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"\nend tell`;
   const p = spawn('osascript', ['-e', script], { detached: true, stdio: 'ignore' });
   p.unref();
@@ -1500,7 +1640,7 @@ function shortlistFromTriage({ url, company, role, score, note }) {
 
 No evaluation has been run for this posting. The user shortlisted it from triage with intent to apply.
 
-Run \`/career-ops apply ${url}\` to generate the full A–G report and proceed with the application.
+Run \`/get-the-job apply ${url}\` to generate the full A–G report and proceed with the application.
 
 ## Triage signal
 - Score: ${cleanScore}
@@ -1630,7 +1770,7 @@ function renderApplyPack(query) {
   }
   const packPath = findApplyPackForRow(num);
   if (!packPath) {
-    return { status: 404, body: shell('No apply pack', `<h1>No apply pack for row #${escapeHtml(num)}</h1><p>Run <code>/career-ops apply &lt;url&gt;</code> in the terminal to generate one.</p><p><a href="/">← Back to tracker</a></p>`) };
+    return { status: 404, body: shell('No apply pack', `<h1>No apply pack for row #${escapeHtml(num)}</h1><p>Run <code>/get-the-job apply &lt;url&gt;</code> in the terminal to generate one.</p><p><a href="/">← Back to tracker</a></p>`) };
   }
   const md = readFileSync(join(ROOT, packPath), 'utf8');
   const { cv, cover } = findOutputPdfsFromPack(md);
@@ -2166,6 +2306,41 @@ function renderTriage() {
   ).join('');
 
   const body = `
+<div id="batch-banner" style="display:none;padding:12px 16px;background:var(--row-alt);border:1px solid var(--border);border-radius:8px;margin-bottom:16px;font-size:14px;align-items:center;gap:8px">
+  <span id="batch-icon">⏳</span>
+  <span id="batch-msg">Morning batch running...</span>
+  <span id="batch-elapsed" style="opacity:.6;margin-left:8px;font-size:13px"></span>
+  <button id="batch-run-btn" onclick="runBatch(this)" style="display:none;margin-left:auto;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--accent);color:var(--on-accent);cursor:pointer;font-size:13px">Run Morning Batch</button>
+</div>
+<script>
+(function(){
+  const banner=document.getElementById('batch-banner'),icon=document.getElementById('batch-icon'),
+    msg=document.getElementById('batch-msg'),elapsed=document.getElementById('batch-elapsed'),
+    runBtn=document.getElementById('batch-run-btn');
+  let done=false;
+  async function poll(){
+    try{
+      const d=await(await fetch('/api/batch-status')).json();
+      banner.style.display='flex';
+      if(d.running){
+        icon.textContent='⏳';msg.textContent='Morning batch running — results will refresh when complete...';
+        runBtn.style.display='none';
+        if(d.started){const m=Math.floor((Date.now()-new Date(d.started).getTime())/60000);elapsed.textContent='('+m+'m elapsed)';}
+      }else if(d.exitCode!==null){
+        if(d.exitCode===0){icon.textContent='✅';msg.innerHTML='Morning batch complete — <a href="/triage" style="color:var(--accent);font-weight:600">refresh for new results</a>';}
+        else{icon.textContent='❌';msg.textContent='Morning batch failed (exit '+d.exitCode+')';}
+        elapsed.textContent='';runBtn.style.display='';runBtn.textContent='Run Again';done=true;
+      }else{
+        icon.textContent='💡';msg.textContent='Morning batch available';
+        runBtn.style.display='';runBtn.textContent='Run Morning Batch';elapsed.textContent='';done=true;
+      }
+    }catch(e){}
+    if(!done)setTimeout(poll,5000);
+  }
+  poll();
+})();
+function runBatch(btn){btn.disabled=true;btn.textContent='Starting...';fetch('/api/run-batch',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.ok)location.reload();else{btn.disabled=false;btn.textContent='Run Morning Batch';alert(d.error);}}).catch(()=>{btn.disabled=false;btn.textContent='Run Morning Batch';})}
+</script>
 <h1>Triage Scores</h1>
 <div class="muted" id="triage-summary">${sorted.length} entries · click column headers to sort · use ▾ dropdowns to filter</div>
 <table id="triage-table">
@@ -2376,6 +2551,51 @@ function sendJson(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
+// ----- Morning Batch (auto-runs on startup via claude CLI) -----
+
+function spawnMorningBatch() {
+  if (server._batchProc && !server._batchDone) return false;
+  const claudeCheck = spawnSync('which', ['claude']);
+  if (claudeCheck.status !== 0) {
+    console.log('[morning-batch] claude CLI not found in PATH, skipping');
+    return false;
+  }
+  server._batchDone = false;
+  server._batchExit = null;
+  server._batchStarted = new Date().toISOString();
+  server._batchOutput = '';
+
+  const proc = spawn('claude', [
+    '-p',
+    '--dangerously-skip-permissions',
+    'run /get-the-job morning-batch'
+  ], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+
+  server._batchProc = proc;
+  const lines = [];
+  const onData = (chunk) => {
+    lines.push(...chunk.toString().split('\n'));
+    if (lines.length > 50) lines.splice(0, lines.length - 50);
+    server._batchOutput = lines.join('\n');
+  };
+  proc.stdout.on('data', onData);
+  proc.stderr.on('data', onData);
+  proc.on('close', (code) => {
+    server._batchDone = true;
+    server._batchExit = code;
+    server._batchFinished = new Date().toISOString();
+    console.log(`[morning-batch] finished (exit ${code})`);
+  });
+  proc.on('error', (err) => {
+    server._batchDone = true;
+    server._batchExit = 1;
+    server._batchFinished = new Date().toISOString();
+    console.log(`[morning-batch] error: ${err.message}`);
+  });
+  console.log(`[morning-batch] started`);
+  return true;
+}
+
 const server = createServer(async (req, res) => {
   try {
     const url = req.url || '/';
@@ -2467,6 +2687,22 @@ const server = createServer(async (req, res) => {
           profileYml += '  target_range: ' + esc(comp) + '\n';
           profileYml += '  currency: ' + esc(currency || 'USD') + '\n';
         }
+        const { headline, exitStory, strengths, proofName, proofMetric, proofDetail } = payload;
+        if (headline || exitStory || (strengths && strengths.length) || proofName) {
+          profileYml += '\nnarrative:\n';
+          if (headline) profileYml += '  headline: ' + esc(headline) + '\n';
+          if (exitStory) profileYml += '  exit_story: ' + esc(exitStory) + '\n';
+          if (strengths && strengths.length) {
+            profileYml += '  superpowers:\n';
+            strengths.forEach(s => { profileYml += '    - ' + esc(s) + '\n'; });
+          }
+          if (proofName) {
+            profileYml += '  proof_points:\n';
+            profileYml += '    - name: ' + esc(proofName) + '\n';
+            if (proofMetric) profileYml += '      hero_metric: ' + esc(proofMetric) + '\n';
+            if (proofDetail) profileYml += '      description: ' + esc(proofDetail) + '\n';
+          }
+        }
         writeFileSync(join(ROOT, 'config', 'profile.yml'), profileYml);
 
         const positive = (roles || []).flatMap(r => r.split(/\s*,\s*|\s+(?:and|or|\/)\s+/i)).filter(Boolean);
@@ -2499,6 +2735,47 @@ const server = createServer(async (req, res) => {
       } catch (e) {
         return sendJson(res, 500, { ok: false, error: e.message });
       }
+    }
+
+    // ----- Scan API -----
+    if (pathname === '/api/run-scan' && req.method === 'POST') {
+      if (server._scanProc && !server._scanDone) return sendJson(res, 409, { ok: false, error: 'scan already running' });
+      try {
+        server._scanDone = false;
+        server._scanExit = null;
+        const proc = spawn('node', [join(ROOT, 'scan.mjs')], { cwd: ROOT, stdio: 'ignore' });
+        server._scanProc = proc;
+        proc.on('close', (code) => { server._scanDone = true; server._scanExit = code; });
+        proc.on('error', () => { server._scanDone = true; server._scanExit = 1; });
+        return sendJson(res, 200, { ok: true });
+      } catch (e) { return sendJson(res, 500, { ok: false, error: e.message }); }
+    }
+    if (pathname === '/api/scan-status' && req.method === 'GET') {
+      return sendJson(res, 200, { running: !server._scanDone, exitCode: server._scanExit });
+    }
+
+    // ----- Quit API -----
+    if (pathname === '/api/quit' && req.method === 'POST') {
+      sendJson(res, 200, { ok: true });
+      console.log('[server] quit requested from dashboard');
+      setTimeout(() => process.exit(0), 500);
+      return;
+    }
+
+    // ----- Morning Batch API -----
+    if (pathname === '/api/run-batch' && req.method === 'POST') {
+      if (server._batchProc && !server._batchDone) return sendJson(res, 409, { ok: false, error: 'morning batch already running' });
+      const started = spawnMorningBatch();
+      if (!started) return sendJson(res, 500, { ok: false, error: 'claude CLI not found' });
+      return sendJson(res, 200, { ok: true });
+    }
+    if (pathname === '/api/batch-status' && req.method === 'GET') {
+      return sendJson(res, 200, {
+        running: !!(server._batchProc && !server._batchDone),
+        exitCode: server._batchExit ?? null,
+        started: server._batchStarted || null,
+        finished: server._batchFinished || null,
+      });
     }
 
     // ----- API endpoints -----
@@ -2562,4 +2839,13 @@ server.listen(PORT, () => {
   console.log(`  /report?file=reports/<file>.md   single report`);
   console.log(`  /apply?row=NNN                   apply pack (answers + CV + cover letter)`);
   console.log(`  /output?file=NAME.pdf            serve a generated PDF`);
+
+  // Auto-launch morning batch on startup
+  const claudeCheck = spawnSync('which', ['claude']);
+  if (claudeCheck.status === 0) {
+    console.log(`  [morning-batch] claude CLI found — auto-starting...`);
+    spawnMorningBatch();
+  } else {
+    console.log(`  [morning-batch] claude CLI not found — skipping auto-batch`);
+  }
 });

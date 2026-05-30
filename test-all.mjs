@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * test-all.mjs — Comprehensive test suite for career-ops
+ * test-all.mjs — Comprehensive test suite for get-the-job
  *
  * Run before merging any PR or pushing changes.
  * Tests: syntax, scripts, dashboard, data contract, personal data, paths.
@@ -42,7 +42,7 @@ function run(cmd, args = [], opts = {}) {
 function fileExists(path) { return existsSync(join(ROOT, path)); }
 function readFile(path) { return readFileSync(join(ROOT, path), 'utf-8'); }
 
-console.log('\n🧪 career-ops test suite\n');
+console.log('\n🧪 get-the-job test suite\n');
 
 // ── 1. SYNTAX CHECKS ────────────────────────────────────────────
 
@@ -142,7 +142,7 @@ const systemFiles = [
   'modes/_shared.md', 'modes/_profile.template.md',
   'modes/oferta.md', 'modes/pdf.md', 'modes/scan.md',
   'templates/states.yml', 'templates/cv-template.html',
-  '.claude/skills/career-ops/SKILL.md',
+  '.claude/skills/get-the-job/SKILL.md',
 ];
 
 for (const f of systemFiles) {
@@ -293,6 +293,44 @@ if (fileExists('VERSION')) {
   }
 } else {
   fail('VERSION file missing');
+}
+
+// ── 9. INLINE-STYLE LINT (no hardcoded colors in server.mjs) ───
+
+console.log('\n9. Inline-style lint');
+
+if (fileExists('server.mjs')) {
+  const serverSrc = readFile('server.mjs');
+  // Match style="..." attributes containing raw hex colors (#xxx or #xxxxxx)
+  // that should use CSS variables instead. Exclude the CSS block (const CSS = `...`)
+  const cssBlockMatch = serverSrc.match(/const CSS = `[\s\S]*?`;/);
+  const cssBlockEnd = cssBlockMatch ? cssBlockMatch.index + cssBlockMatch[0].length : 0;
+  const htmlPortion = serverSrc.slice(cssBlockEnd);
+
+  const styleAttrRe = /style="([^"]+)"/g;
+  const hexRe = /#[0-9a-fA-F]{3,8}\b/g;
+  const allowed = new Set(['#fff', '#ffffff', '#000', '#000000']);
+  const violations = [];
+  let m;
+  while ((m = styleAttrRe.exec(htmlPortion)) !== null) {
+    const styleVal = m[1];
+    let h;
+    while ((h = hexRe.exec(styleVal)) !== null) {
+      if (allowed.has(h[0].toLowerCase())) continue;
+      const lineNum = htmlPortion.slice(0, m.index).split('\n').length + serverSrc.slice(0, cssBlockEnd).split('\n').length;
+      violations.push({ hex: h[0], line: lineNum, snippet: styleVal.slice(Math.max(0, h.index - 20), h.index + h[0].length + 20).trim() });
+    }
+  }
+
+  if (violations.length === 0) {
+    pass('No hardcoded hex colors in inline styles');
+  } else {
+    for (const v of violations) {
+      fail(`Hardcoded color ${v.hex} in inline style (line ~${v.line}): ...${v.snippet}... — use a CSS variable instead`);
+    }
+  }
+} else {
+  warn('server.mjs not found, skipping inline-style lint');
 }
 
 // ── SUMMARY ─────────────────────────────────────────────────────

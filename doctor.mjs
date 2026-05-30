@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * doctor.mjs — Setup validation for career-ops
+ * doctor.mjs — Setup validation for get-the-job
  * Checks all prerequisites and prints a pass/fail checklist.
  */
 
@@ -150,7 +150,7 @@ function checkAutoDir(name) {
 }
 
 async function main() {
-  console.log('\ncareer-ops doctor');
+  console.log('\nget-the-job doctor');
   console.log('================\n');
 
   const checks = [

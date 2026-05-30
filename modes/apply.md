@@ -69,7 +69,7 @@ Para cada pregunta, generar la respuesta siguiendo:
 2. **Section G previa**: Si existe una respuesta draft, usarla como base y refinar
 3. **Tono "I'm choosing you"**: Mismo framework del auto-pipeline
 4. **Especificidad**: Referenciar algo concreto del JD visible en pantalla
-5. **career-ops proof point**: Incluir en "Additional info" si hay campo para ello
+5. **get-the-job proof point**: Incluir en "Additional info" si hay campo para ello
 
 **Formato de output:**
 
@@ -99,11 +99,11 @@ Notas:
 
 Auto-pipeline and batch evaluators do NOT generate PDFs anymore — they only produce the markdown report. PDFs are generated here, when the user is actually applying, to avoid token waste on roles the user never pursues.
 
-When entering apply mode, check `output/cv-{company-slug}-{date}.pdf`:
+When entering apply mode, check `output/cv-adrian-{company-slug}-{date}.pdf`:
 - **Exists already?** Skip generation, attach the existing PDF.
 - **Doesn't exist?** Generate it now using `modes/pdf.md` (read JD from saved report → tailored summary + competencies + bullets → render via `templates/cv-template.html` + `generate-pdf.mjs`).
 
-Cover letter (`output/cover-{company-slug}-{date}.pdf`):
+Cover letter (`output/cover-adrian-{company-slug}-{date}.pdf`):
 - **Generate ONLY if** the application form has a cover-letter upload field, OR the user explicitly asks for one ("write me a cover letter for X").
 - 1 page max, same visual design as CV (Space Grotesk + DM Sans + cyan→purple gradient).
 - 3-4 paragraphs: hook with JD-quote + match (architectural pattern), honest gap acknowledgment + bridge, why this company specifically.
@@ -120,7 +120,7 @@ Si el candidato confirma que envió la aplicación:
    awk -F'\t' -v url="$URL" 'NR==1 || $1 != url' data/triage-scores.tsv > data/triage-scores.tsv.tmp \
      && mv data/triage-scores.tsv.tmp data/triage-scores.tsv
    ```
-4. Sugerir siguiente paso: `/career-ops contacto` para LinkedIn outreach
+4. Sugerir siguiente paso: `/get-the-job contacto` para LinkedIn outreach
 
 ## Scroll handling
 

@@ -1,6 +1,6 @@
-# career-ops -- Modos em Português BR (`modes/pt/`)
+# get-the-job -- Modos em Português BR (`modes/pt/`)
 
-Esta pasta contém as traduções em português brasileiro dos principais modos do career-ops para candidatos que buscam vagas no mercado brasileiro ou em empresas que operam em português.
+Esta pasta contém as traduções em português brasileiro dos principais modos do get-the-job para candidatos que buscam vagas no mercado brasileiro ou em empresas que operam em português.
 
 ## Quando usar estes modos?
 
@@ -15,7 +15,7 @@ Se a maioria das suas vagas é em inglês, fique com os modos padrão em `modes/
 
 ## Como ativar?
 
-O career-ops não tem um "switch de idioma" como flag de código. Em vez disso, existem dois caminhos:
+O get-the-job não tem um "switch de idioma" como flag de código. Em vez disso, existem dois caminhos:
 
 ### Caminho 1 -- Por sessão, via comando
 

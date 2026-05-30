@@ -1,4 +1,4 @@
-# User Profile Context -- career-ops
+# User Profile Context -- get-the-job
 
 <!-- ============================================================
      THIS FILE IS YOURS. It will NEVER be auto-updated.

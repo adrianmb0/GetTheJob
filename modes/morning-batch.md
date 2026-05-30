@@ -160,14 +160,14 @@ Show the merged queue right in the Claude Code session:
 | 4.7   | ...     | ...  | ... | ...   |
 ...
 
-📅 CARRIED OVER (act on these or /career-ops skip <url>)
+📅 CARRIED OVER (act on these or /get-the-job skip <url>)
 | Score | Company | Role | URL | Notes |
 |-------|---------|------|-----|-------|
 ...
 ```
 
 If carried-over count > 0, gently remind the user:
-> {Y} postings carried from a previous run. If you don't want to apply, run `/career-ops skip <url>` to remove from queue. They'll auto-purge after 14 days regardless.
+> {Y} postings carried from a previous run. If you don't want to apply, run `/get-the-job skip <url>` to remove from queue. They'll auto-purge after 14 days regardless.
 
 ### Step 8 — Final summary
 
@@ -186,12 +186,12 @@ Cost:         ~${X.XX}  (subscription credits)
 Duration:     {X}m {Y}s
 
 Ready to apply. Top picks (highest scores first):
-  1. /career-ops apply {top URL}     ({company} — {role}, {score})
-  2. /career-ops apply {next}        (...)
+  1. /get-the-job apply {top URL}     ({company} — {role}, {score})
+  2. /get-the-job apply {next}        (...)
   ...
 
 To remove from queue without applying:
-  /career-ops skip {url}             (or by row number from the table above)
+  /get-the-job skip {url}             (or by row number from the table above)
 ```
 
 ---

@@ -98,11 +98,11 @@ The full A–G report only gets generated in `apply` mode, IF the user actually 
 - Do NOT do company deep-research (that's `deep` mode)
 - Do NOT do LinkedIn outreach research (that's `contacto` mode)
 
-If the user later runs `/career-ops apply <url>` on a triage-scored URL, the apply mode will trigger the full evaluation on demand.
+If the user later runs `/get-the-job apply <url>` on a triage-scored URL, the apply mode will trigger the full evaluation on demand.
 
 ## Output to user when called directly (not from morning-batch)
 
-If a user invokes `/career-ops triage <url>` manually, also print the row contents to chat after writing, so they can see what got recorded:
+If a user invokes `/get-the-job triage <url>` manually, also print the row contents to chat after writing, so they can see what got recorded:
 
 ```
 Triaged: {company} — {role} ({location})
