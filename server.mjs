@@ -427,6 +427,17 @@ th.sort-desc .col-sort { color: var(--accent); }
 }
 .btn-apply:hover { opacity: 0.9; }
 .btn-apply:disabled { background: var(--high); }
+.btn-batch {
+  margin-left: auto;
+  background: var(--accent); color: var(--on-accent); border: 0;
+  padding: 7px 16px; border-radius: 6px; font-size: 13px;
+  cursor: pointer; font-weight: 600; font-family: inherit;
+  box-shadow: 0 1px 2px rgba(0,0,0,.08);
+  transition: opacity .15s ease, transform .05s ease, box-shadow .15s ease;
+}
+.btn-batch:hover { opacity: .92; box-shadow: 0 2px 6px rgba(0,0,0,.12); }
+.btn-batch:active { transform: translateY(1px); }
+.btn-batch:disabled { opacity: .55; cursor: default; box-shadow: none; }
 .btn-shortlist {
   background: #fef9c3; color: #713f12; border: 1px solid #fde047;
   padding: 4px 10px; border-radius: 4px; font-size: 12.5px;
@@ -2310,7 +2321,7 @@ function renderTriage() {
   <span id="batch-icon">⏳</span>
   <span id="batch-msg">Morning batch running...</span>
   <span id="batch-elapsed" style="opacity:.6;margin-left:8px;font-size:13px"></span>
-  <button id="batch-run-btn" onclick="runBatch(this)" style="display:none;margin-left:auto;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--accent);color:var(--on-accent);cursor:pointer;font-size:13px">Run Morning Batch</button>
+  <button id="batch-run-btn" class="btn-batch" onclick="runBatch(this)" style="display:none">Run Morning Batch</button>
 </div>
 <script>
 (function(){
