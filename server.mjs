@@ -14,6 +14,16 @@ const ROOT = process.env.DATA_DIR
   ? resolve(process.env.DATA_DIR)
   : resolve(fileURLToPath(import.meta.url), '..');
 
+// ----- auto-fix GetTheJob.app permissions on startup -----
+const APP_LAUNCHER = join(ROOT, 'GetTheJob.app', 'Contents', 'MacOS', 'GetTheJob');
+if (existsSync(APP_LAUNCHER)) {
+  try {
+    const st = statSync(APP_LAUNCHER);
+    if (!(st.mode & 0o111)) spawnSync('chmod', ['+x', APP_LAUNCHER]);
+    spawnSync('xattr', ['-cr', join(ROOT, 'GetTheJob.app')], { stdio: 'ignore' });
+  } catch (_) { /* non-critical */ }
+}
+
 // ----- onboarding data -----
 
 const INDUSTRIES = [
@@ -1127,6 +1137,12 @@ ${CSS}
   <div id="ob-scan-progress" style="display:none;text-align:center;margin-top:16px">
     <p id="ob-scan-status" style="font-size:14px">Scanning job boards...</p>
     <div style="width:200px;height:4px;background:var(--border);border-radius:2px;margin:8px auto"><div id="ob-scan-bar" style="height:100%;background:var(--accent);border-radius:2px;width:0%;transition:width 0.5s"></div></div>
+  </div>
+  <div style="margin-top:32px;padding:20px;background:var(--bg-alt);border:1px solid var(--border);border-radius:12px;text-align:center">
+    <div style="font-size:28px;margin-bottom:6px">💼</div>
+    <p style="font-weight:600;margin:0 0 6px;font-size:15px">Add to your Dock for one-click access</p>
+    <p class="muted" style="font-size:13px;margin:0 0 12px;line-height:1.5">Open Finder → <code style="background:var(--border);padding:2px 6px;border-radius:4px">GetTheJob.app</code> (in the project folder) → drag it to your Dock.<br>One click launches the dashboard and runs your morning batch automatically.</p>
+    <p class="muted" style="font-size:12px;margin:0;opacity:.7">Requires <a href="https://docs.anthropic.com/en/docs/claude-code" target="_blank" style="color:var(--accent)">Claude Code</a> for AI-powered triage.</p>
   </div>
 </div>
 
