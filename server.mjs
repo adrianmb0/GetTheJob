@@ -438,6 +438,22 @@ th.sort-desc .col-sort { color: var(--accent); }
 .btn-batch:hover { opacity: .92; box-shadow: 0 2px 6px rgba(0,0,0,.12); }
 .btn-batch:active { transform: translateY(1px); }
 .btn-batch:disabled { opacity: .55; cursor: default; box-shadow: none; }
+.batch-banner {
+  display: none; align-items: center; gap: 10px;
+  padding: 11px 16px; margin-bottom: 16px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--row-alt); color: var(--fg); font-size: 14px;
+  transition: background .2s ease, border-color .2s ease, color .2s ease;
+}
+.batch-banner.show { display: flex; }
+.batch-banner .batch-icon { font-size: 15px; line-height: 1; flex-shrink: 0; }
+.batch-banner .batch-msg { font-weight: 500; }
+.batch-banner .batch-elapsed { opacity: .65; font-size: 13px; }
+.batch-banner a { color: inherit; font-weight: 700; text-decoration: underline; }
+.batch-banner.is-running { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+.batch-banner.is-done    { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+.batch-banner.is-failed  { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.batch-banner.is-failed .btn-batch { background: #dc2626; }
 .btn-shortlist {
   background: #fef9c3; color: #713f12; border: 1px solid #fde047;
   padding: 4px 10px; border-radius: 4px; font-size: 12.5px;
@@ -2317,10 +2333,10 @@ function renderTriage() {
   ).join('');
 
   const body = `
-<div id="batch-banner" style="display:none;padding:12px 16px;background:var(--row-alt);border:1px solid var(--border);border-radius:8px;margin-bottom:16px;font-size:14px;align-items:center;gap:8px">
-  <span id="batch-icon">⏳</span>
-  <span id="batch-msg">Morning batch running...</span>
-  <span id="batch-elapsed" style="opacity:.6;margin-left:8px;font-size:13px"></span>
+<div id="batch-banner" class="batch-banner">
+  <span id="batch-icon" class="batch-icon">⏳</span>
+  <span id="batch-msg" class="batch-msg">Morning batch running...</span>
+  <span id="batch-elapsed" class="batch-elapsed"></span>
   <button id="batch-run-btn" class="btn-batch" onclick="runBatch(this)" style="display:none">Run Morning Batch</button>
 </div>
 <script>
@@ -2332,19 +2348,23 @@ function renderTriage() {
   async function poll(){
     try{
       const d=await(await fetch('/api/batch-status')).json();
-      banner.style.display='flex';
+      let state='';
       if(d.running){
-        icon.textContent='⏳';msg.textContent='Morning batch running — results will refresh when complete...';
+        state='is-running';icon.textContent='⏳';
+        msg.textContent='Morning batch running — results will refresh when complete…';
         runBtn.style.display='none';
-        if(d.started){const m=Math.floor((Date.now()-new Date(d.started).getTime())/60000);elapsed.textContent='('+m+'m elapsed)';}
+        if(d.started){const m=Math.floor((Date.now()-new Date(d.started).getTime())/60000);elapsed.textContent=m+'m elapsed';}
       }else if(d.exitCode!==null){
-        if(d.exitCode===0){icon.textContent='✅';msg.innerHTML='Morning batch complete — <a href="/triage" style="color:var(--accent);font-weight:600">refresh for new results</a>';}
-        else{icon.textContent='❌';msg.textContent='Morning batch failed (exit '+d.exitCode+')';}
-        elapsed.textContent='';runBtn.style.display='';runBtn.textContent='Run Again';done=true;
+        const cancelled=d.exitCode===143||d.exitCode===137;
+        if(d.exitCode===0){state='is-done';icon.textContent='✅';msg.innerHTML='Morning batch complete — <a href="/triage">refresh for new results</a>';}
+        else if(cancelled){state='';icon.textContent='⏹';msg.textContent='Morning batch stopped.';}
+        else{state='is-failed';icon.textContent='⚠️';msg.textContent='Morning batch failed (exit '+d.exitCode+'). Check the terminal for details.';}
+        elapsed.textContent='';runBtn.style.display='';runBtn.textContent=cancelled?'Run Morning Batch':'Run Again';done=true;
       }else{
-        icon.textContent='💡';msg.textContent='Morning batch available';
+        state='';icon.textContent='💡';msg.textContent='Morning batch available';
         runBtn.style.display='';runBtn.textContent='Run Morning Batch';elapsed.textContent='';done=true;
       }
+      banner.className='batch-banner show'+(state?' '+state:'');
     }catch(e){}
     if(!done)setTimeout(poll,5000);
   }
