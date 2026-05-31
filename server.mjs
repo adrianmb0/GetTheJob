@@ -2871,12 +2871,18 @@ server.listen(PORT, () => {
   console.log(`  /apply?row=NNN                   apply pack (answers + CV + cover letter)`);
   console.log(`  /output?file=NAME.pdf            serve a generated PDF`);
 
-  // Auto-launch morning batch on startup
-  const claudeCheck = spawnSync('which', ['claude']);
-  if (claudeCheck.status === 0) {
-    console.log(`  [morning-batch] claude CLI found — auto-starting...`);
-    spawnMorningBatch();
+  // Auto-launch morning batch on startup (opt-in via AUTOSTART_BATCH=1).
+  // Defaults OFF so restarting the server never kicks off a surprise run;
+  // the launcher scripts set AUTOSTART_BATCH=1 to preserve double-click behavior.
+  if (process.env.AUTOSTART_BATCH === '1') {
+    const claudeCheck = spawnSync('which', ['claude']);
+    if (claudeCheck.status === 0) {
+      console.log(`  [morning-batch] claude CLI found — auto-starting...`);
+      spawnMorningBatch();
+    } else {
+      console.log(`  [morning-batch] claude CLI not found — skipping auto-batch`);
+    }
   } else {
-    console.log(`  [morning-batch] claude CLI not found — skipping auto-batch`);
+    console.log(`  [morning-batch] auto-start off (set AUTOSTART_BATCH=1 to enable); use the Run Morning Batch button`);
   }
 });

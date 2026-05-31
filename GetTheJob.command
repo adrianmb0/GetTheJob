@@ -26,7 +26,7 @@ sleep 0.5
 
 # Start the server (morning batch auto-launches inside server.mjs)
 echo "Starting GetTheJob..."
-node server.mjs &
+AUTOSTART_BATCH=1 node server.mjs &
 SERVER_PID=$!
 sleep 1
 
