@@ -2314,15 +2314,23 @@ function renderInbox(query) {
         msg.textContent='Morning batch running — results will refresh when complete…';
         runBtn.style.display='none';
         if(d.started){const m=Math.floor((Date.now()-new Date(d.started).getTime())/60000);elapsed.textContent=m+'m elapsed';}
-      }else if(d.exitCode!==null){
-        const cancelled=d.exitCode===143||d.exitCode===137;
-        if(d.exitCode===0){state='is-done';icon.textContent='✅';msg.innerHTML='Morning batch complete — <a href="/?view=inbox&new=1">see the new leads</a>';}
-        else if(cancelled){state='';icon.textContent='⏹';msg.textContent='Morning batch stopped.';}
-        else{state='is-failed';icon.textContent='⚠️';msg.textContent='Morning batch failed (exit '+d.exitCode+'). Check the terminal for details.';}
-        elapsed.textContent='';runBtn.style.display='';runBtn.textContent=cancelled?'Run Morning Batch':'Run Again';done=true;
       }else{
-        state='';icon.textContent='💡';msg.textContent='Morning batch available';
-        runBtn.style.display='';runBtn.textContent='Run Morning Batch';elapsed.textContent='';done=true;
+        // Not running. Build a base message from this session's last exit (if any).
+        let base='';
+        if(d.exitCode===0){state='is-done';icon.textContent='✅';base='Morning batch complete — <a href="/?view=inbox&new=1">see the new leads</a>';}
+        else if(d.exitCode===143||d.exitCode===137){state='';icon.textContent='⏹';base='Morning batch stopped.';}
+        else if(d.exitCode!==null){state='is-failed';icon.textContent='⚠️';base='Morning batch failed (exit '+d.exitCode+'). Check the terminal for details.';}
+        if(d.cooldownActive){
+          // A batch already ran in the last 24h — block, but offer an override.
+          const hrs=Math.max(1,Math.ceil(d.cooldownRemainingMs/3600000));
+          if(!base){state='';icon.textContent='🌙';base='Morning batch already ran today — next run available in ~'+hrs+'h';}
+          else{base+=' · next run in ~'+hrs+'h';}
+          runBtn.textContent='Override & run now';runBtn.dataset.override='1';
+        }else{
+          if(!base){state='';icon.textContent='💡';base='Morning batch available';}
+          runBtn.textContent=(d.exitCode!==null?'Run again':'Run Morning Batch');runBtn.dataset.override='';
+        }
+        msg.innerHTML=base;runBtn.style.display='';elapsed.textContent='';done=true;
       }
       banner.className='batch-banner show'+(state?' '+state:'');
     }catch(e){}
@@ -2330,7 +2338,16 @@ function renderInbox(query) {
   }
   poll();
 })();
-function runBatch(btn){btn.disabled=true;btn.textContent='Starting...';fetch('/api/run-batch',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.ok)location.reload();else{btn.disabled=false;btn.textContent='Run Morning Batch';alert(d.error);}}).catch(()=>{btn.disabled=false;btn.textContent='Run Morning Batch';})}
+function runBatch(btn){
+  const override=btn.dataset.override==='1';
+  const label=btn.textContent;
+  if(override&&!confirm('A morning batch already ran in the last 24 hours. Run another one now anyway?'))return;
+  btn.disabled=true;btn.textContent='Starting...';
+  fetch('/api/run-batch'+(override?'?override=1':''),{method:'POST'}).then(r=>r.json()).then(d=>{
+    if(d.ok)location.reload();
+    else{btn.disabled=false;btn.textContent=label;alert(d.error||'Could not start the batch.');}
+  }).catch(()=>{btn.disabled=false;btn.textContent=label;});
+}
 </script>
 <div class="toolbar">
   <div>
@@ -2453,6 +2470,30 @@ function sendJson(res, status, payload) {
 
 // ----- Morning Batch (auto-runs on startup via claude CLI) -----
 
+// Persisted across restarts so the 24h cooldown survives quitting/relaunching.
+const BATCH_STATE_FILE = join(ROOT, 'data', '.batch-state.json');
+const BATCH_COOLDOWN_MS = 24 * 60 * 60 * 1000; // one batch per 24h unless overridden
+
+function readBatchState() {
+  try { return JSON.parse(readFileSync(BATCH_STATE_FILE, 'utf8')); } catch { return {}; }
+}
+function writeBatchState(patch) {
+  const next = { ...readBatchState(), ...patch };
+  try {
+    mkdirSync(join(ROOT, 'data'), { recursive: true });
+    writeFileSync(BATCH_STATE_FILE, JSON.stringify(next, null, 2));
+  } catch (e) { console.log(`[morning-batch] could not persist state: ${e.message}`); }
+  return next;
+}
+// ms left before another batch is allowed; 0 means it can run now.
+function batchCooldownRemainingMs() {
+  const { lastRun } = readBatchState();
+  if (!lastRun) return 0;
+  const elapsed = Date.now() - new Date(lastRun).getTime();
+  if (!Number.isFinite(elapsed) || elapsed < 0) return 0;
+  return Math.max(0, BATCH_COOLDOWN_MS - elapsed);
+}
+
 function spawnMorningBatch() {
   if (server._batchProc && !server._batchDone) return false;
   const claudeCheck = spawnSync('which', ['claude']);
@@ -2464,6 +2505,8 @@ function spawnMorningBatch() {
   server._batchExit = null;
   server._batchStarted = new Date().toISOString();
   server._batchOutput = '';
+  // Stamp the run immediately so the 24h cooldown applies even if it later fails.
+  writeBatchState({ lastRun: server._batchStarted });
 
   const proc = spawn('claude', [
     '-p',
@@ -2484,6 +2527,7 @@ function spawnMorningBatch() {
     server._batchDone = true;
     server._batchExit = code;
     server._batchFinished = new Date().toISOString();
+    writeBatchState({ lastExit: code, lastFinished: server._batchFinished });
     console.log(`[morning-batch] finished (exit ${code})`);
   });
   proc.on('error', (err) => {
@@ -2662,19 +2706,39 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    // ----- Liveness ping (used by launcher to detect an already-running instance) -----
+    if (pathname === '/api/ping' && req.method === 'GET') {
+      return sendJson(res, 200, { ok: true, app: 'getthejob', pid: process.pid, uptime: Math.round(process.uptime()) });
+    }
+
     // ----- Morning Batch API -----
     if (pathname === '/api/run-batch' && req.method === 'POST') {
       if (server._batchProc && !server._batchDone) return sendJson(res, 409, { ok: false, error: 'morning batch already running' });
+      const override = query.override === '1';
+      const remaining = batchCooldownRemainingMs();
+      if (remaining > 0 && !override) {
+        return sendJson(res, 429, {
+          ok: false,
+          cooldown: true,
+          remainingMs: remaining,
+          lastRun: readBatchState().lastRun || null,
+          error: 'Morning batch already ran in the last 24h. Override to run anyway.',
+        });
+      }
       const started = spawnMorningBatch();
       if (!started) return sendJson(res, 500, { ok: false, error: 'claude CLI not found' });
-      return sendJson(res, 200, { ok: true });
+      return sendJson(res, 200, { ok: true, overridden: override && remaining > 0 });
     }
     if (pathname === '/api/batch-status' && req.method === 'GET') {
+      const remaining = batchCooldownRemainingMs();
       return sendJson(res, 200, {
         running: !!(server._batchProc && !server._batchDone),
         exitCode: server._batchExit ?? null,
         started: server._batchStarted || null,
         finished: server._batchFinished || null,
+        lastRun: readBatchState().lastRun || null,
+        cooldownRemainingMs: remaining,
+        cooldownActive: remaining > 0,
       });
     }
 
@@ -2744,12 +2808,18 @@ server.listen(PORT, () => {
   // Defaults OFF so restarting the server never kicks off a surprise run;
   // the launcher scripts set AUTOSTART_BATCH=1 to preserve double-click behavior.
   if (process.env.AUTOSTART_BATCH === '1') {
-    const claudeCheck = spawnSync('which', ['claude']);
-    if (claudeCheck.status === 0) {
-      console.log(`  [morning-batch] claude CLI found — auto-starting...`);
-      spawnMorningBatch();
+    const remaining = batchCooldownRemainingMs();
+    if (remaining > 0) {
+      const hrs = (remaining / 3600000).toFixed(1);
+      console.log(`  [morning-batch] already ran within the last 24h — skipping auto-start (next in ${hrs}h). Override from the dashboard.`);
     } else {
-      console.log(`  [morning-batch] claude CLI not found — skipping auto-batch`);
+      const claudeCheck = spawnSync('which', ['claude']);
+      if (claudeCheck.status === 0) {
+        console.log(`  [morning-batch] claude CLI found — auto-starting...`);
+        spawnMorningBatch();
+      } else {
+        console.log(`  [morning-batch] claude CLI not found — skipping auto-batch`);
+      }
     }
   } else {
     console.log(`  [morning-batch] auto-start off (set AUTOSTART_BATCH=1 to enable); use the Run Morning Batch button`);

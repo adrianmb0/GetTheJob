@@ -17,11 +17,19 @@ if ! command -v node &>/dev/null; then
   exit 1
 fi
 
-# Kill any existing server on the same port
+# Detect an already-running instance. The server owns port 3737, so if it
+# answers /api/ping the app is already open — just focus the browser instead of
+# starting a second server (which would re-run the morning batch).
+if curl -fsS -m 1 "http://localhost:3737/api/ping" >/dev/null 2>&1; then
+  open "http://localhost:3737"
+  exit 0
+fi
+
+# No healthy instance — clear any stale process holding the port, then start fresh.
 lsof -ti:3737 | xargs kill 2>/dev/null || true
 sleep 0.5
 
-# Start the server (morning batch auto-launches inside server.mjs)
+# Start the server (morning batch auto-launches inside server.mjs, respecting the 24h cooldown)
 AUTOSTART_BATCH=1 node server.mjs &
 SERVER_PID=$!
 sleep 1

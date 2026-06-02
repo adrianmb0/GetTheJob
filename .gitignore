@@ -6,6 +6,7 @@ data/scan-history.tsv
 data/triage-scores.tsv
 data/follow-ups.md
 data/apply/
+data/.batch-state.json
 reports/*.md
 !reports/.gitkeep
 output/*
