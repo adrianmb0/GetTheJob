@@ -8,7 +8,8 @@
 
 set -euo pipefail
 
-REPO="/Users/adrianmelobueno/Documents/GitHub/GetTheJob"
+# Resolve the repo root from this script's own location (scripts/ → repo root).
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RECIPIENT="adrian.mb97@gmail.com"
 THRESHOLD="4.0"
 APPLICATIONS="$REPO/data/applications.md"
