@@ -353,6 +353,14 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .col-dropdown-clear:hover { background: var(--row-hover); }
 .sortctl { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); margin-left: auto; }
 .sortctl select { font: inherit; font-size: 12.5px; border: 1px solid var(--border); border-radius: 999px; padding: 7px 11px; background: var(--surface); color: var(--ink); cursor: pointer; }
+.chip-toggle { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; font-weight: 600; font-size: 12.5px; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 7px 13px; font-family: inherit; }
+.chip-toggle:hover { border-color: var(--accent); }
+.chip-toggle.active { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+.chip-toggle .chip-count { font-size: 11px; font-weight: 700; padding: 0 6px; border-radius: 999px; background: rgba(125,125,125,.2); }
+.chip-toggle.active .chip-count { background: rgba(255,255,255,.25); }
+.new-badge { display: inline-block; vertical-align: middle; margin-left: 7px; font-size: 9.5px; font-weight: 800; letter-spacing: .06em; padding: 1px 6px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); }
+.lead.is-new { box-shadow: inset 3px 0 0 var(--accent); }
+.kc.is-new { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
 
 /* ----- pipeline board ----- */
 .board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; align-items: start; }
@@ -1894,6 +1902,10 @@ function renderPipeline(query) {
   const reportLinkRe = /\[([^\]]+)\]\(([^)]+)\)/;
   const scanHistory = loadScanHistory();
   const MOVE_TARGETS = ['Evaluated', 'Shortlisted', 'Applied', 'Responded', 'Interview', 'Offer', 'Rejected', 'Discarded'];
+  // "New" = rows added to the pipeline on the most recent date present
+  const addedDates = rows.map(r => (r[idx.date] || '').trim()).filter(Boolean).sort();
+  const latestAdded = addedDates.length ? addedDates[addedDates.length - 1] : '';
+  const newCount = latestAdded ? rows.filter(r => (r[idx.date] || '').trim() === latestAdded).length : 0;
 
   // Display columns (forward funnel). Closed states live in a collapsible lane.
   const COLS = [
@@ -1922,6 +1934,7 @@ function renderPipeline(query) {
     const rawStatus = (r[idx.status] || '').trim();
     const status = CANONICAL_STATUSES.has(rawStatus) ? rawStatus : 'Evaluated';
     const closed = CLOSED.includes(status);
+    const isNew = !!latestAdded && (r[idx.date] || '').trim() === latestAdded;
 
     let reportFile = '';
     const m = (r[idx.report] || '').match(reportLinkRe);
@@ -1940,13 +1953,14 @@ function renderPipeline(query) {
     const showApply = url && (status === 'Evaluated' || status === 'Shortlisted');
     const applyBtn = showApply ? `<button class="btn-apply" onclick="applyJob('${escapeHtml(url)}', this)">Apply</button>` : '';
 
-    const metaBit = datePosted
-      ? `<span class="kmeta" data-rel="${escapeHtml(datePosted)}">${escapeHtml(datePosted)}</span>`
-      : (date ? `<span class="kmeta">${date}</span>` : '');
+    const addedRaw = (r[idx.date] || '').trim();
+    const metaBit = addedRaw
+      ? `<span class="kmeta" data-rel="${escapeHtml(addedRaw)}" title="Added to pipeline ${escapeHtml(addedRaw)}">${escapeHtml(addedRaw)}</span>`
+      : (datePosted ? `<span class="kmeta" data-rel="${escapeHtml(datePosted)}">${escapeHtml(datePosted)}</span>` : '');
 
-    return `<div class="kc${closed ? ' closed' : ''}" data-num="${num}" data-status="${escapeHtml(status)}" data-search="${searchStr}">
+    return `<div class="kc${closed ? ' closed' : ''}${isNew ? ' is-new' : ''}" data-num="${num}" data-status="${escapeHtml(status)}" data-new="${isNew ? '1' : ''}" data-search="${searchStr}">
       <div class="kc-top">
-        <div><div class="co">${company}</div><div class="ro">${role}</div></div>
+        <div><div class="co">${company}${isNew ? ' <span class="new-badge">NEW</span>' : ''}</div><div class="ro">${role}</div></div>
         <div class="menu"><button class="icon-btn" title="Actions" style="width:28px;height:28px;font-size:13px" onclick="toggleMenu(event, this)">⋯</button><div class="menu-pop">${applyItem}${reportItem}${openItem}${packItem}<div class="sep"></div><div class="label">Move to</div>${moveItems}<div class="sep"></div>${delItem}</div></div>
       </div>
       ${note ? `<div class="kc-note" style="font-size:11.5px;color:var(--muted);margin-top:7px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${escapeHtml(note)}</div>` : ''}
@@ -1974,6 +1988,7 @@ function renderPipeline(query) {
     <div class="sub">Everything you're actively pursuing, by stage. Use a card's ⋯ menu to move it forward as things progress.</div>
   </div>
   <div class="tools">
+    ${latestAdded ? `<button class="chip-toggle" id="new-toggle" title="Added to your pipeline on the latest date (${escapeHtml(latestAdded)})">✨ New<span class="chip-count">${newCount}</span></button>` : ''}
     <button class="btn-add-toggle" onclick="document.getElementById('add-form').classList.toggle('open')">+ Add role</button>
   </div>
 </div>
@@ -2020,12 +2035,19 @@ function submitAddPosting(e) {
 }
 (function(){
   const s = document.getElementById('global-search');
-  if (!s) return;
+  const newToggle = document.getElementById('new-toggle');
   const cards = Array.from(document.querySelectorAll('.kc'));
-  s.addEventListener('input', () => {
-    const t = s.value.trim().toLowerCase();
-    cards.forEach(c => { c.style.display = (!t || (c.dataset.search || '').indexOf(t) >= 0) ? '' : 'none'; });
-  });
+  let term = '', newOnly = false;
+  function apply() {
+    cards.forEach(c => {
+      const okSearch = !term || (c.dataset.search || '').indexOf(term) >= 0;
+      const okNew = !newOnly || c.dataset.new === '1';
+      c.style.display = (okSearch && okNew) ? '' : 'none';
+    });
+  }
+  if (s) s.addEventListener('input', () => { term = s.value.trim().toLowerCase(); apply(); });
+  if (newToggle) newToggle.addEventListener('click', () => { newOnly = !newOnly; newToggle.classList.toggle('active', newOnly); apply(); });
+  if (newToggle && new URLSearchParams(location.search).get('new') === '1') { newOnly = true; newToggle.classList.add('active'); apply(); }
 })();
 </script>
 `;
@@ -2103,9 +2125,35 @@ function loadScanHistory() {
   return map;
 }
 
+// URLs already in the pipeline (applications.md), pulled from the **URL:** header
+// of each linked report. Used to hide Inbox leads that have already been
+// shortlisted/evaluated/applied so they don't re-surface with a stale triage score.
+function loadPipelineUrls() {
+  const set = new Set();
+  try {
+    const trackerPath = join(ROOT, 'data', 'applications.md');
+    if (!existsSync(trackerPath)) return set;
+    const existing = readFileSync(trackerPath, 'utf8');
+    const reportPaths = Array.from(existing.matchAll(/reports\/[\w.\-]+\.md/g)).map(m => m[0]);
+    for (const rp of new Set(reportPaths)) {
+      const u = extractReportUrl(rp);
+      if (u) set.add(u);
+    }
+  } catch {}
+  return set;
+}
+
 function getCounts() {
   let inbox = null, pipeline = null;
-  try { const p = join(ROOT, 'data', 'triage-scores.tsv'); if (existsSync(p)) inbox = parseTsv(readFileSync(p, 'utf8')).rows.length; } catch {}
+  try {
+    const p = join(ROOT, 'data', 'triage-scores.tsv');
+    if (existsSync(p)) {
+      const { header, rows } = parseTsv(readFileSync(p, 'utf8'));
+      const urlIdx = header.findIndex(h => /^url$/i.test(h));
+      const pipeUrls = loadPipelineUrls();
+      inbox = rows.filter(r => !pipeUrls.has((urlIdx >= 0 ? r[urlIdx] : '') || '')).length;
+    }
+  } catch {}
   try { const p = join(ROOT, 'data', 'applications.md'); if (existsSync(p)) pipeline = parseApplicationsMd(readFileSync(p, 'utf8')).rows.length; } catch {}
   return { inbox, pipeline };
 }
@@ -2116,7 +2164,7 @@ function renderInbox(query) {
     return shell('Inbox', '<h1>Inbox</h1><div class="empty">No leads yet — run a scan to populate data/triage-scores.tsv.</div>', { view: 'inbox', ...getCounts() });
   }
   const text = readFileSync(path, 'utf8');
-  const { header, rows } = parseTsv(text);
+  const { header, rows: allRows } = parseTsv(text);
   const idx = {
     url:      header.findIndex(h => /^url$/i.test(h)),
     added:    header.findIndex(h => /^first[_ ]seen$/i.test(h)),
@@ -2127,6 +2175,11 @@ function renderInbox(query) {
     note:     header.findIndex(h => /^one[_ ]line[_ ]note$/i.test(h)),
     location: header.findIndex(h => /^location$/i.test(h)),
   };
+
+  // Hide leads already in the pipeline (shortlisted/evaluated/applied) so a job
+  // that was fully evaluated doesn't re-appear here with a divergent triage score.
+  const pipeUrls = loadPipelineUrls();
+  const rows = idx.url >= 0 ? allRows.filter(r => !pipeUrls.has(r[idx.url] || '')) : allRows;
 
   const scanHistory = loadScanHistory();
 
@@ -2153,6 +2206,11 @@ function renderInbox(query) {
   });
   const medianTop = tops.length ? tops.slice().sort((a, b) => a - b)[Math.floor(tops.length / 2)] : 0;
 
+  // "New" = leads from the most recent scan date present (i.e. today, right after a batch runs)
+  const addedDates = sorted.map(r => (r[idx.added] || '').trim()).filter(Boolean).sort();
+  const latestAdded = addedDates.length ? addedDates[addedDates.length - 1] : '';
+  const newCount = latestAdded ? sorted.filter(r => (r[idx.added] || '').trim() === latestAdded).length : 0;
+
   const leadRows = sorted.map(r => {
     const url = r[idx.url] || '';
     const scoreRaw = r[idx.score] || '';
@@ -2164,6 +2222,8 @@ function renderInbox(query) {
     const location = idx.location >= 0 ? (r[idx.location] || '') : '';
     const note = r[idx.note] || '';
     const comp = extractComp(note);
+    const firstSeen = r[idx.added] || '';
+    const isNew = !!latestAdded && firstSeen.trim() === latestAdded;
     const sn = parseFloat(scoreNum) || 0;
     const scoreBucket = sn >= 4.5 ? '4.5+' : sn >= 4.0 ? '4.0-4.4' : sn >= 3.5 ? '3.5-3.9' : '<3.5';
     const searchStr = escapeHtml((company + ' ' + role + ' ' + location + ' ' + note).toLowerCase());
@@ -2175,16 +2235,17 @@ function renderInbox(query) {
     const openItem = url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">↗&nbsp; Open posting</a>` : '';
     const dismissItem = url ? `<button class="danger" onclick="dismissTriage('${escapeHtml(url)}', this)">🗑&nbsp; Dismiss from inbox</button>` : '';
 
+    const metaDate = firstSeen.trim() || datePosted;
     const meta = [
       location ? `<span>${escapeHtml(location)}</span>` : '',
       comp.display ? `<span>${escapeHtml(comp.display)}</span>` : '',
-      datePosted ? `<span data-rel="${escapeHtml(datePosted)}">${escapeHtml(datePosted)}</span>` : '',
+      metaDate ? `<span data-rel="${escapeHtml(metaDate)}" title="Added to your inbox ${escapeHtml(metaDate)}">${escapeHtml(metaDate)}</span>` : '',
     ].filter(Boolean).join('');
 
-    return `<div class="lead" data-verdict="${escapeHtml(verdict)}" data-score-bucket="${scoreBucket}" data-company="${escapeHtml(company)}" data-location="${escapeHtml(location)}" data-score="${escapeHtml(scoreNum)}" data-pay="${comp.sortKey}" data-posted="${escapeHtml(datePosted)}" data-search="${searchStr}">
+    return `<div class="lead${isNew ? ' is-new' : ''}" data-verdict="${escapeHtml(verdict)}" data-score-bucket="${scoreBucket}" data-company="${escapeHtml(company)}" data-location="${escapeHtml(location)}" data-score="${escapeHtml(scoreNum)}" data-pay="${comp.sortKey}" data-posted="${escapeHtml(datePosted)}" data-added="${escapeHtml(firstSeen)}" data-new="${isNew ? '1' : ''}" data-search="${searchStr}">
       <div class="score-chip ${scoreClass(scoreRaw)}">${escapeHtml(scoreRaw || '—')}</div>
       <div class="lead-main">
-        <div class="lead-co">${escapeHtml(company)}</div>
+        <div class="lead-co">${escapeHtml(company)}${isNew ? ' <span class="new-badge">NEW</span>' : ''}</div>
         <div class="lead-role">${escapeHtml(role)}</div>
         <div class="lead-meta">${meta}</div>
       </div>
@@ -2255,7 +2316,7 @@ function renderInbox(query) {
         if(d.started){const m=Math.floor((Date.now()-new Date(d.started).getTime())/60000);elapsed.textContent=m+'m elapsed';}
       }else if(d.exitCode!==null){
         const cancelled=d.exitCode===143||d.exitCode===137;
-        if(d.exitCode===0){state='is-done';icon.textContent='✅';msg.innerHTML='Morning batch complete — <a href="/?view=inbox">refresh for new results</a>';}
+        if(d.exitCode===0){state='is-done';icon.textContent='✅';msg.innerHTML='Morning batch complete — <a href="/?view=inbox&new=1">see the new leads</a>';}
         else if(cancelled){state='';icon.textContent='⏹';msg.textContent='Morning batch stopped.';}
         else{state='is-failed';icon.textContent='⚠️';msg.textContent='Morning batch failed (exit '+d.exitCode+'). Check the terminal for details.';}
         elapsed.textContent='';runBtn.style.display='';runBtn.textContent=cancelled?'Run Morning Batch':'Run Again';done=true;
@@ -2284,6 +2345,7 @@ function runBatch(btn){btn.disabled=true;btn.textContent='Starting...';fetch('/a
   <div class="stat"><b>${freshCount}</b>new this week</div>
 </div>
 <div class="filter-bar">
+  ${latestAdded ? `<button class="chip-toggle" id="new-toggle" title="Leads from the latest scan (${escapeHtml(latestAdded)})">✨ New<span class="chip-count">${newCount}</span></button>` : ''}
   <span class="col-filter" data-col="score-bucket">Score&nbsp;▾<div class="col-dropdown"><button class="col-dropdown-clear">Clear</button>${scoreOpts}</div></span>
   <span class="col-filter" data-col="verdict">Verdict&nbsp;▾<div class="col-dropdown"><button class="col-dropdown-clear">Clear</button>${verdictOpts}</div></span>
   <span class="col-filter" data-col="company">Company&nbsp;▾<div class="col-dropdown"><button class="col-dropdown-clear">Clear</button>${companyOpts}</div></span>
@@ -2304,7 +2366,9 @@ function runBatch(btn){btn.disabled=true;btn.textContent='Starting...';fetch('/a
   const sortSel = document.getElementById('inbox-sort');
   const panel = document.getElementById('inbox-list');
   let term = '';
-  const rowData = rows.map(el => ({ el, verdict: el.dataset.verdict || '', 'score-bucket': el.dataset.scoreBucket || '', company: el.dataset.company || '', location: el.dataset.location || '', search: el.dataset.search || '' }));
+  let newOnly = false;
+  const newToggle = document.getElementById('new-toggle');
+  const rowData = rows.map(el => ({ el, verdict: el.dataset.verdict || '', 'score-bucket': el.dataset.scoreBucket || '', company: el.dataset.company || '', location: el.dataset.location || '', search: el.dataset.search || '', isNew: el.dataset.new === '1' }));
   function passExcluding(rd, ex) { for (const k of filterKeys) { if (k === ex) continue; if (filters[k].size === 0) continue; if (!filters[k].has(rd[k])) return false; } return true; }
   function apply() {
     let shown = 0;
@@ -2312,10 +2376,11 @@ function runBatch(btn){btn.disabled=true;btn.textContent='Starting...';fetch('/a
       let ok = true;
       for (const k of filterKeys) { if (filters[k].size && !filters[k].has(rd[k])) { ok = false; break; } }
       if (ok && term && rd.search.indexOf(term) < 0) ok = false;
+      if (ok && newOnly && !rd.isNew) ok = false;
       rd.el.classList.toggle('is-hidden', !ok);
       if (ok) shown++;
     });
-    const anyActive = filterKeys.some(k => filters[k].size > 0) || term;
+    const anyActive = filterKeys.some(k => filters[k].size > 0) || term || newOnly;
     summary.textContent = anyActive ? shown + ' of ' + total + ' shown' : '';
     document.querySelectorAll('.filter-bar .col-filter').forEach(trigger => {
       const col = trigger.dataset.col, dd = trigger.querySelector('.col-dropdown'), counts = {};
@@ -2343,6 +2408,8 @@ function runBatch(btn){btn.disabled=true;btn.textContent='Starting...';fetch('/a
   });
   document.addEventListener('click', () => document.querySelectorAll('.col-dropdown.open').forEach(d => d.classList.remove('open')));
   if (searchEl) searchEl.addEventListener('input', () => { term = searchEl.value.trim().toLowerCase(); apply(); });
+  if (newToggle) newToggle.addEventListener('click', () => { newOnly = !newOnly; newToggle.classList.toggle('active', newOnly); apply(); });
+  if (newToggle && new URLSearchParams(location.search).get('new') === '1') { newOnly = true; newToggle.classList.add('active'); }
   function num(el, a) { return parseFloat(el.dataset[a]) || 0; }
   function sortNow() {
     if (!sortSel || !panel) return;
@@ -2351,7 +2418,7 @@ function runBatch(btn){btn.disabled=true;btn.textContent='Starting...';fetch('/a
       if (v === 'score-asc') return num(a, 'score') - num(b, 'score');
       if (v === 'company') return (a.dataset.company || '').localeCompare(b.dataset.company || '', undefined, { sensitivity: 'base' });
       if (v === 'pay-desc') return num(b, 'pay') - num(a, 'pay');
-      if (v === 'posted-desc') return (b.dataset.posted || '').localeCompare(a.dataset.posted || '');
+      if (v === 'posted-desc') return (b.dataset.added || '').localeCompare(a.dataset.added || '');
       return num(b, 'score') - num(a, 'score');
     });
     arr.forEach(el => panel.appendChild(el));
