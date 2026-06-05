@@ -2143,6 +2143,23 @@ function loadPipelineUrls() {
   return set;
 }
 
+// URLs known to be expired/closed, recorded by the liveness sweep in
+// batch/expired-urls.txt. Used to drop dead postings from the Inbox immediately,
+// so removal doesn't wait for the next morning batch to sweep triage-scores.tsv.
+// Each line is either a bare URL or "URL<TAB>date<TAB>note"; the URL is column 0.
+function loadExpiredUrls() {
+  const set = new Set();
+  try {
+    const path = join(ROOT, 'batch', 'expired-urls.txt');
+    if (!existsSync(path)) return set;
+    for (const line of readFileSync(path, 'utf8').split('\n')) {
+      const url = (line.split('\t')[0] || '').trim();
+      if (url) set.add(url);
+    }
+  } catch {}
+  return set;
+}
+
 function getCounts() {
   let inbox = null, pipeline = null;
   try {
@@ -2151,7 +2168,11 @@ function getCounts() {
       const { header, rows } = parseTsv(readFileSync(p, 'utf8'));
       const urlIdx = header.findIndex(h => /^url$/i.test(h));
       const pipeUrls = loadPipelineUrls();
-      inbox = rows.filter(r => !pipeUrls.has((urlIdx >= 0 ? r[urlIdx] : '') || '')).length;
+      const expiredUrls = loadExpiredUrls();
+      inbox = rows.filter(r => {
+        const u = (urlIdx >= 0 ? r[urlIdx] : '') || '';
+        return !pipeUrls.has(u) && !expiredUrls.has(u);
+      }).length;
     }
   } catch {}
   try { const p = join(ROOT, 'data', 'applications.md'); if (existsSync(p)) pipeline = parseApplicationsMd(readFileSync(p, 'utf8')).rows.length; } catch {}
@@ -2178,8 +2199,12 @@ function renderInbox(query) {
 
   // Hide leads already in the pipeline (shortlisted/evaluated/applied) so a job
   // that was fully evaluated doesn't re-appear here with a divergent triage score.
+  // Also drop any posting already known to be expired/closed (liveness sweep).
   const pipeUrls = loadPipelineUrls();
-  const rows = idx.url >= 0 ? allRows.filter(r => !pipeUrls.has(r[idx.url] || '')) : allRows;
+  const expiredUrls = loadExpiredUrls();
+  const rows = idx.url >= 0
+    ? allRows.filter(r => !pipeUrls.has(r[idx.url] || '') && !expiredUrls.has(r[idx.url] || ''))
+    : allRows;
 
   const scanHistory = loadScanHistory();
 
