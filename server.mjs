@@ -169,6 +169,20 @@ const COMPANY_CATALOG = {
 
 // ----- helpers -----
 
+// True if a YYYY-MM-DD date is today or at most `days` days ago. Used to expire
+// the "NEW" highlight in the Inbox/Pipeline so a stale batch (no scan in a while)
+// stops being flagged as new once it's more than `days` days old.
+function withinDays(dateStr, days) {
+  const s = (dateStr || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return false;
+  const [y, m, d] = s.slice(0, 10).split('-').map(Number);
+  const then = Date.UTC(y, m - 1, d);
+  const now = new Date();
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const ageDays = Math.round((today - then) / 86400000);
+  return ageDays >= 0 && ageDays <= days;
+}
+
 // Detect a Greenhouse/Ashby/Lever board from a pasted careers URL and derive the
 // API endpoint + a display name. Mirrors scan.mjs's detectApi so the onboarding
 // "add a company" field only accepts boards the scanner can actually read.
@@ -2164,10 +2178,12 @@ function renderPipeline(query) {
 
   const reportLinkRe = /\[([^\]]+)\]\(([^)]+)\)/;
   const scanHistory = loadScanHistory();
-  // "New" = rows added to the pipeline on the most recent date present
+  // "New" = rows added to the pipeline on the most recent date present, but only
+  // while that batch is still fresh (≤ 2 days old) — stale batches lose the tag.
   const addedDates = rows.map(r => (r[idx.date] || '').trim()).filter(Boolean).sort();
   const latestAdded = addedDates.length ? addedDates[addedDates.length - 1] : '';
-  const newCount = latestAdded ? rows.filter(r => (r[idx.date] || '').trim() === latestAdded).length : 0;
+  const newIsFresh = withinDays(latestAdded, 2);
+  const newCount = newIsFresh ? rows.filter(r => (r[idx.date] || '').trim() === latestAdded).length : 0;
 
   // Display columns (forward funnel). Closed states live in a collapsible lane.
   const COLS = [
@@ -2196,7 +2212,7 @@ function renderPipeline(query) {
     const rawStatus = (r[idx.status] || '').trim();
     const status = CANONICAL_STATUSES.has(rawStatus) ? rawStatus : 'Evaluated';
     const closed = CLOSED.includes(status);
-    const isNew = !!latestAdded && (r[idx.date] || '').trim() === latestAdded;
+    const isNew = newIsFresh && (r[idx.date] || '').trim() === latestAdded;
 
     let reportFile = '';
     const m = (r[idx.report] || '').match(reportLinkRe);
@@ -2255,7 +2271,7 @@ function renderPipeline(query) {
     <div class="sub">Everything you're actively pursuing, by stage. Drag a card between columns to move it forward — or click it to open the posting.</div>
   </div>
   <div class="tools">
-    ${latestAdded ? `<button class="chip-toggle" id="new-toggle" title="Added to your pipeline on the latest date (${escapeHtml(latestAdded)})">✨ New<span class="chip-count">${newCount}</span></button>` : ''}
+    ${newCount > 0 ? `<button class="chip-toggle" id="new-toggle" title="Added to your pipeline on the latest date (${escapeHtml(latestAdded)})">✨ New<span class="chip-count">${newCount}</span></button>` : ''}
     <button class="btn-add-toggle" onclick="document.getElementById('add-form').classList.toggle('open')">+ Add role</button>
   </div>
 </div>
@@ -2566,10 +2582,12 @@ function renderInbox(query) {
   });
   const medianTop = tops.length ? tops.slice().sort((a, b) => a - b)[Math.floor(tops.length / 2)] : 0;
 
-  // "New" = leads from the most recent scan date present (i.e. today, right after a batch runs)
+  // "New" = leads from the most recent scan date present (i.e. today, right after
+  // a batch runs), but only while that scan is still fresh (≤ 2 days old).
   const addedDates = sorted.map(r => (r[idx.added] || '').trim()).filter(Boolean).sort();
   const latestAdded = addedDates.length ? addedDates[addedDates.length - 1] : '';
-  const newCount = latestAdded ? sorted.filter(r => (r[idx.added] || '').trim() === latestAdded).length : 0;
+  const newIsFresh = withinDays(latestAdded, 2);
+  const newCount = newIsFresh ? sorted.filter(r => (r[idx.added] || '').trim() === latestAdded).length : 0;
 
   const leadRows = sorted.map(r => {
     const url = r[idx.url] || '';
@@ -2584,7 +2602,7 @@ function renderInbox(query) {
     const note = r[idx.note] || '';
     const comp = extractComp(note);
     const firstSeen = r[idx.added] || '';
-    const isNew = !!latestAdded && firstSeen.trim() === latestAdded;
+    const isNew = newIsFresh && firstSeen.trim() === latestAdded;
     const sn = parseFloat(scoreNum) || 0;
     const scoreBucket = sn >= 4.5 ? '4.5+' : sn >= 4.0 ? '4.0-4.4' : sn >= 3.5 ? '3.5-3.9' : '<3.5';
     const searchStr = escapeHtml((company + ' ' + role + ' ' + location + ' ' + note).toLowerCase());
@@ -2723,7 +2741,7 @@ function runBatch(btn){
   <div class="stat"><b>${freshCount}</b>new this week</div>
 </div>
 <div class="filter-bar">
-  ${latestAdded ? `<button class="chip-toggle" id="new-toggle" title="Leads from the latest scan (${escapeHtml(latestAdded)})">✨ New<span class="chip-count">${newCount}</span></button>` : ''}
+  ${newCount > 0 ? `<button class="chip-toggle" id="new-toggle" title="Leads from the latest scan (${escapeHtml(latestAdded)})">✨ New<span class="chip-count">${newCount}</span></button>` : ''}
   <span class="col-filter" data-col="score-bucket">Score&nbsp;▾<div class="col-dropdown"><button class="col-dropdown-clear">Clear</button>${scoreOpts}</div></span>
   <span class="col-filter" data-col="verdict">Verdict&nbsp;▾<div class="col-dropdown"><button class="col-dropdown-clear">Clear</button>${verdictOpts}</div></span>
   <span class="col-filter" data-col="company">Company&nbsp;▾<div class="col-dropdown"><button class="col-dropdown-clear">Clear</button>${companyOpts}</div></span>
