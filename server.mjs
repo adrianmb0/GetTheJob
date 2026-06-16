@@ -56,7 +56,161 @@ const ROLE_SUGGESTIONS = {
   other: ['Project Manager', 'Product Manager', 'Data Analyst', 'Business Analyst', 'Operations Manager', 'Marketing Manager', 'UX Designer', 'Software Engineer'],
 };
 
+// Curated companies the onboarding wizard offers per industry. Every careers_url
+// points at a Greenhouse/Ashby/Lever board so scan.mjs can detect the API and
+// actually return jobs — each was verified live against its ATS endpoint. Users
+// can also paste any other Greenhouse/Ashby/Lever URL in the wizard.
+const COMPANY_CATALOG = {
+  tech: [
+    { name: "Anthropic", careers_url: "https://job-boards.greenhouse.io/anthropic", api: "https://boards-api.greenhouse.io/v1/boards/anthropic/jobs" },
+    { name: "Cohere", careers_url: "https://jobs.ashbyhq.com/cohere" },
+    { name: "Mistral AI", careers_url: "https://jobs.lever.co/mistral" },
+    { name: "Perplexity", careers_url: "https://jobs.ashbyhq.com/perplexity" },
+    { name: "ElevenLabs", careers_url: "https://jobs.ashbyhq.com/elevenlabs" },
+    { name: "Vercel", careers_url: "https://job-boards.greenhouse.io/vercel", api: "https://boards-api.greenhouse.io/v1/boards/vercel/jobs" },
+    { name: "Zapier", careers_url: "https://jobs.ashbyhq.com/zapier" },
+    { name: "Airtable", careers_url: "https://job-boards.greenhouse.io/airtable", api: "https://boards-api.greenhouse.io/v1/boards/airtable/jobs" },
+    { name: "Supabase", careers_url: "https://jobs.ashbyhq.com/supabase" },
+    { name: "Palantir", careers_url: "https://jobs.lever.co/palantir" },
+    { name: "Glean", careers_url: "https://job-boards.greenhouse.io/gleanwork", api: "https://boards-api.greenhouse.io/v1/boards/gleanwork/jobs" },
+    { name: "Runway", careers_url: "https://job-boards.greenhouse.io/runwayml", api: "https://boards-api.greenhouse.io/v1/boards/runwayml/jobs" },
+    { name: "Synthesia", careers_url: "https://jobs.ashbyhq.com/synthesia" },
+    { name: "DeepL", careers_url: "https://jobs.ashbyhq.com/DeepL" },
+    { name: "Spotify", careers_url: "https://jobs.lever.co/spotify" },
+    { name: "Vinted", careers_url: "https://jobs.lever.co/vinted" },
+    { name: "Intercom", careers_url: "https://job-boards.greenhouse.io/intercom", api: "https://boards-api.greenhouse.io/v1/boards/intercom/jobs" },
+    { name: "Temporal", careers_url: "https://job-boards.greenhouse.io/temporal", api: "https://boards-api.greenhouse.io/v1/boards/temporal/jobs" },
+    { name: "Pinecone", careers_url: "https://jobs.ashbyhq.com/pinecone" },
+    { name: "n8n", careers_url: "https://jobs.ashbyhq.com/n8n" },
+  ],
+  finance: [
+    { name: "Stripe", careers_url: "https://job-boards.greenhouse.io/stripe", api: "https://boards-api.greenhouse.io/v1/boards/stripe/jobs" },
+    { name: "Plaid", careers_url: "https://jobs.ashbyhq.com/plaid" },
+    { name: "Brex", careers_url: "https://job-boards.greenhouse.io/brex", api: "https://boards-api.greenhouse.io/v1/boards/brex/jobs" },
+    { name: "Ramp", careers_url: "https://jobs.ashbyhq.com/ramp" },
+    { name: "Chime", careers_url: "https://job-boards.greenhouse.io/chime", api: "https://boards-api.greenhouse.io/v1/boards/chime/jobs" },
+    { name: "Affirm", careers_url: "https://job-boards.greenhouse.io/affirm", api: "https://boards-api.greenhouse.io/v1/boards/affirm/jobs" },
+    { name: "Robinhood", careers_url: "https://job-boards.greenhouse.io/robinhood", api: "https://boards-api.greenhouse.io/v1/boards/robinhood/jobs" },
+    { name: "Coinbase", careers_url: "https://job-boards.greenhouse.io/coinbase", api: "https://boards-api.greenhouse.io/v1/boards/coinbase/jobs" },
+    { name: "Gusto", careers_url: "https://job-boards.greenhouse.io/gusto", api: "https://boards-api.greenhouse.io/v1/boards/gusto/jobs" },
+    { name: "Carta", careers_url: "https://job-boards.greenhouse.io/carta", api: "https://boards-api.greenhouse.io/v1/boards/carta/jobs" },
+    { name: "Mercury", careers_url: "https://job-boards.greenhouse.io/mercury", api: "https://boards-api.greenhouse.io/v1/boards/mercury/jobs" },
+    { name: "Betterment", careers_url: "https://job-boards.greenhouse.io/betterment", api: "https://boards-api.greenhouse.io/v1/boards/betterment/jobs" },
+    { name: "Wealthfront", careers_url: "https://jobs.lever.co/wealthfront" },
+    { name: "Marqeta", careers_url: "https://job-boards.greenhouse.io/marqeta", api: "https://boards-api.greenhouse.io/v1/boards/marqeta/jobs" },
+    { name: "Modern Treasury", careers_url: "https://jobs.ashbyhq.com/moderntreasury" },
+    { name: "Clearco", careers_url: "https://jobs.ashbyhq.com/clearco" },
+    { name: "Public", careers_url: "https://job-boards.greenhouse.io/public", api: "https://boards-api.greenhouse.io/v1/boards/public/jobs" },
+    { name: "Alpaca", careers_url: "https://job-boards.greenhouse.io/alpaca", api: "https://boards-api.greenhouse.io/v1/boards/alpaca/jobs" },
+  ],
+  health: [
+    { name: "Oscar Health", careers_url: "https://job-boards.greenhouse.io/oscar", api: "https://boards-api.greenhouse.io/v1/boards/oscar/jobs" },
+    { name: "Ro", careers_url: "https://jobs.lever.co/ro" },
+    { name: "Cedar", careers_url: "https://jobs.ashbyhq.com/cedar" },
+    { name: "Benchling", careers_url: "https://jobs.ashbyhq.com/benchling" },
+    { name: "Included Health", careers_url: "https://jobs.lever.co/includedhealth" },
+    { name: "Maven Clinic", careers_url: "https://job-boards.greenhouse.io/mavenclinic", api: "https://boards-api.greenhouse.io/v1/boards/mavenclinic/jobs" },
+    { name: "Headway", careers_url: "https://jobs.ashbyhq.com/headway" },
+    { name: "Komodo Health", careers_url: "https://job-boards.greenhouse.io/komodohealth", api: "https://boards-api.greenhouse.io/v1/boards/komodohealth/jobs" },
+    { name: "Commure", careers_url: "https://jobs.ashbyhq.com/commure" },
+  ],
+  education: [
+    { name: "Coursera", careers_url: "https://job-boards.greenhouse.io/coursera", api: "https://boards-api.greenhouse.io/v1/boards/coursera/jobs" },
+    { name: "Duolingo", careers_url: "https://job-boards.greenhouse.io/duolingo", api: "https://boards-api.greenhouse.io/v1/boards/duolingo/jobs" },
+    { name: "Udemy", careers_url: "https://job-boards.greenhouse.io/udemy", api: "https://boards-api.greenhouse.io/v1/boards/udemy/jobs" },
+    { name: "Outschool", careers_url: "https://job-boards.greenhouse.io/outschool", api: "https://boards-api.greenhouse.io/v1/boards/outschool/jobs" },
+    { name: "Guild", careers_url: "https://job-boards.greenhouse.io/guild", api: "https://boards-api.greenhouse.io/v1/boards/guild/jobs" },
+    { name: "Newsela", careers_url: "https://job-boards.greenhouse.io/newsela", api: "https://boards-api.greenhouse.io/v1/boards/newsela/jobs" },
+    { name: "NerdWallet", careers_url: "https://jobs.ashbyhq.com/nerdwallet" },
+    { name: "Multiverse", careers_url: "https://jobs.ashbyhq.com/multiverse" },
+    { name: "Handshake", careers_url: "https://jobs.ashbyhq.com/handshake" },
+  ],
+  climate: [
+    { name: "Watershed", careers_url: "https://job-boards.greenhouse.io/watershed", api: "https://boards-api.greenhouse.io/v1/boards/watershed/jobs" },
+    { name: "Arcadia", careers_url: "https://jobs.lever.co/arcadia" },
+    { name: "Form Energy", careers_url: "https://jobs.ashbyhq.com/formenergy" },
+    { name: "Crusoe", careers_url: "https://jobs.ashbyhq.com/crusoe" },
+    { name: "Sila", careers_url: "https://jobs.lever.co/sila" },
+    { name: "Charm Industrial", careers_url: "https://jobs.lever.co/charmindustrial" },
+    { name: "Aurora Solar", careers_url: "https://jobs.ashbyhq.com/aurorasolar" },
+    { name: "SPAN", careers_url: "https://jobs.ashbyhq.com/span" },
+    { name: "Palmetto", careers_url: "https://job-boards.greenhouse.io/palmetto", api: "https://boards-api.greenhouse.io/v1/boards/palmetto/jobs" },
+    { name: "Twelve", careers_url: "https://jobs.ashbyhq.com/twelve" },
+  ],
+  media: [
+    { name: "Patreon", careers_url: "https://jobs.ashbyhq.com/patreon" },
+    { name: "Vox Media", careers_url: "https://job-boards.greenhouse.io/voxmedia", api: "https://boards-api.greenhouse.io/v1/boards/voxmedia/jobs" },
+    { name: "The Athletic", careers_url: "https://jobs.lever.co/theathletic" },
+    { name: "Discord", careers_url: "https://job-boards.greenhouse.io/discord", api: "https://boards-api.greenhouse.io/v1/boards/discord/jobs" },
+    { name: "Cameo", careers_url: "https://job-boards.greenhouse.io/cameo", api: "https://boards-api.greenhouse.io/v1/boards/cameo/jobs" },
+    { name: "Fandom", careers_url: "https://job-boards.greenhouse.io/fandom", api: "https://boards-api.greenhouse.io/v1/boards/fandom/jobs" },
+    { name: "Musixmatch", careers_url: "https://jobs.lever.co/musixmatch" },
+  ],
+  retail: [
+    { name: "Instacart", careers_url: "https://job-boards.greenhouse.io/instacart", api: "https://boards-api.greenhouse.io/v1/boards/instacart/jobs" },
+    { name: "Faire", careers_url: "https://job-boards.greenhouse.io/faire", api: "https://boards-api.greenhouse.io/v1/boards/faire/jobs" },
+    { name: "Glossier", careers_url: "https://job-boards.greenhouse.io/glossier", api: "https://boards-api.greenhouse.io/v1/boards/glossier/jobs" },
+    { name: "Gopuff", careers_url: "https://jobs.lever.co/gopuff" },
+    { name: "StockX", careers_url: "https://job-boards.greenhouse.io/stockx", api: "https://boards-api.greenhouse.io/v1/boards/stockx/jobs" },
+    { name: "OLIPOP", careers_url: "https://job-boards.greenhouse.io/olipop", api: "https://boards-api.greenhouse.io/v1/boards/olipop/jobs" },
+    { name: "Ritual", careers_url: "https://job-boards.greenhouse.io/ritual", api: "https://boards-api.greenhouse.io/v1/boards/ritual/jobs" },
+  ],
+  consulting: [
+    { name: "Thoughtworks", careers_url: "https://job-boards.greenhouse.io/thoughtworks", api: "https://boards-api.greenhouse.io/v1/boards/thoughtworks/jobs" },
+  ],
+  manufacturing: [
+    { name: "Lucid Motors", careers_url: "https://job-boards.greenhouse.io/lucidmotors", api: "https://boards-api.greenhouse.io/v1/boards/lucidmotors/jobs" },
+    { name: "Shield AI", careers_url: "https://jobs.lever.co/shieldai" },
+    { name: "Figure", careers_url: "https://job-boards.greenhouse.io/figure", api: "https://boards-api.greenhouse.io/v1/boards/figure/jobs" },
+    { name: "Formlabs", careers_url: "https://job-boards.greenhouse.io/formlabs", api: "https://boards-api.greenhouse.io/v1/boards/formlabs/jobs" },
+    { name: "Markforged", careers_url: "https://job-boards.greenhouse.io/markforged", api: "https://boards-api.greenhouse.io/v1/boards/markforged/jobs" },
+  ],
+};
+
 // ----- helpers -----
+
+// Detect a Greenhouse/Ashby/Lever board from a pasted careers URL and derive the
+// API endpoint + a display name. Mirrors scan.mjs's detectApi so the onboarding
+// "add a company" field only accepts boards the scanner can actually read.
+// Returns null if the URL isn't a recognized board.
+function detectAtsFromUrl(rawUrl) {
+  let url = String(rawUrl || '').trim();
+  if (!url) return null;
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  let host, path;
+  try { const u = new URL(url); host = u.hostname.toLowerCase(); path = u.pathname; }
+  catch { return null; }
+  const slugOf = () => (path.split('/').filter(Boolean)[0] || '').trim();
+  const titleize = (s) => s.replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim();
+
+  if (/(^|\.)ashbyhq\.com$/.test(host)) {
+    const slug = slugOf(); if (!slug) return null;
+    return { type: 'ashby', name: titleize(slug), careers_url: `https://jobs.ashbyhq.com/${slug}`,
+      api: `https://api.ashbyhq.com/posting-api/job-board/${slug}?includeCompensation=true` };
+  }
+  if (/(^|\.)lever\.co$/.test(host)) {
+    const slug = slugOf(); if (!slug) return null;
+    return { type: 'lever', name: titleize(slug), careers_url: `https://jobs.lever.co/${slug}`,
+      api: `https://api.lever.co/v0/postings/${slug}?mode=json` };
+  }
+  if (/greenhouse\.io$/.test(host)) {
+    const slug = slugOf(); if (!slug) return null;
+    return { type: 'greenhouse', name: titleize(slug), careers_url: `https://job-boards.greenhouse.io/${slug}`,
+      api: `https://boards-api.greenhouse.io/v1/boards/${slug}/jobs` };
+  }
+  return null;
+}
+
+// Hit a detected ATS API and return the live open-role count (null on failure).
+async function countAtsJobs(detected) {
+  try {
+    const r = await fetch(detected.api, { signal: AbortSignal.timeout(8000), headers: { 'User-Agent': 'Mozilla/5.0 (GetTheJob onboarding)' } });
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (detected.type === 'lever') return Array.isArray(j) ? j.length : null;
+    return Array.isArray(j.jobs) ? j.jobs.length : null;
+  } catch { return null; }
+}
 
 function escapeHtml(s) {
   if (s == null) return '';
@@ -368,12 +522,16 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 @media (max-width: 680px) { .board { grid-template-columns: 1fr; } }
 .col { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 11px; min-height: 180px; }
 .col.drop-target { outline: 2px dashed var(--accent); outline-offset: -4px; background: var(--accent-weak); }
+.closed-lane.drop-target { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 10px; background: var(--accent-weak); }
 .col-h { display: flex; align-items: center; justify-content: space-between; padding: 5px 6px 12px; font-size: 12.5px; font-weight: 720; letter-spacing: -.01em; }
 .col-h .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; vertical-align: middle; }
 .col-h .c { font-weight: 730; color: var(--muted); font-size: 11px; background: var(--neutral-bg); border-radius: 999px; padding: 2px 8px; }
 .kc { background: var(--canvas); border: 1px solid var(--border); border-radius: 11px; padding: 11px 12px; margin-bottom: 9px; }
 .kc:hover { border-color: var(--accent); }
 .kc.dragging { opacity: .45; }
+.kc[draggable] { cursor: grab; }
+.kc[draggable]:active { cursor: grabbing; }
+.kc[data-url] { cursor: pointer; }
 .kc .kc-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .kc .co { font-weight: 680; font-size: 14px; letter-spacing: -.01em; }
 .kc .ro { color: var(--muted); font-size: 12px; margin-top: 2px; }
@@ -625,18 +783,6 @@ function toggleMenu(e, btn) {
   closeMenus(pop);
   pop.classList.toggle('open', willOpen);
 }
-function moveCard(num, status, btn) {
-  btn.disabled = true;
-  fetch('/api/set-status', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ num, status })
-  }).then(r => r.json()).then(j => {
-    if (!j.ok) { btn.disabled = false; showToast('Move failed: ' + (j.error || 'unknown'), true); return; }
-    showToast('Moved to ' + status);
-    setTimeout(() => location.reload(), 400);
-  }).catch(err => { btn.disabled = false; showToast(err.message, true); });
-}
 function relTime(s) {
   const t = Date.parse(s);
   if (isNaN(t)) return s;
@@ -808,6 +954,7 @@ function renderOnboarding(previewMode = false) {
 
   const industriesJson = JSON.stringify(INDUSTRIES);
   const roleSuggestionsJson = JSON.stringify(ROLE_SUGGESTIONS);
+  const companyCatalogJson = JSON.stringify(COMPANY_CATALOG);
 
   return `<!doctype html>
 <html lang="en">
@@ -819,7 +966,7 @@ function renderOnboarding(previewMode = false) {
 <style>
 ${CSS}
 .onboarding { max-width: 1100px; margin: 0 auto; padding: 20px 32px 40px; }
-.ob-step[data-step="1"], .ob-step[data-step="2"], .ob-step[data-step="3"], .ob-step[data-step="4"], .ob-step[data-step="5"] { max-width: 800px; margin: 0 auto; }
+.ob-step[data-step="1"], .ob-step[data-step="2"], .ob-step[data-step="3"], .ob-step[data-step="4"], .ob-step[data-step="5"], .ob-step[data-step="6"] { max-width: 800px; margin: 0 auto; }
 .ob-hero { text-align: center; margin-bottom: 12px; }
 .ob-hero h1 { font-size: 26px; margin: 0 0 4px; }
 .ob-hero .ob-icon { font-size: 32px; margin-bottom: 4px; }
@@ -915,6 +1062,7 @@ ${CSS}
     <button class="ob-btn ob-btn-primary ob-btn-lg" onclick="goStep(1)">Get Started →</button>
     <a class="ob-manual" href="https://github.com/adrianmb0/GetTheJob#first-time-setup-manual" target="_blank">I prefer to set up manually</a>
   </div>
+  <div class="ob-prereq muted" style="text-align:center;font-size:12.5px;margin:14px auto 0;max-width:560px;line-height:1.5">⚙️ Runs on <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a> with a Claude Pro or Max plan (or API key). Scanning &amp; tracking are free — AI scoring and apply packs use your plan.</div>
   <div class="ob-preview-caption">A peek at your dashboard</div>
   <div class="ob-preview-tabs" style="margin:0">
     <div class="ob-preview-tab active" onclick="switchPreview('tracker')">Pipeline</div>
@@ -981,9 +1129,32 @@ ${CSS}
   </div>
 </div>
 
-<!-- Step 3: CV -->
+<!-- Step 3: Companies to track -->
 <div class="ob-step" data-step="3">
-  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot current"></div><div class="dot"></div><div class="dot"></div></div>
+  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot current"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+  <h2 style="text-align:center;margin-top:0">Where Should We Look?</h2>
+  <p class="muted" style="text-align:center">Pick a few companies to track. The scanner checks their job boards for roles matching your profile — free, no AI needed.</p>
+
+  <div id="ob-company-hint" class="ob-hint" style="font-size:12px;color:var(--muted);margin-bottom:8px"></div>
+  <div class="ob-industry-grid" id="ob-company-grid"></div>
+
+  <div class="ob-section-title" style="margin-top:24px">Add another company <span style="font-weight:400;color:var(--muted)">(optional)</span></div>
+  <div class="ob-hint" style="font-size:12px;color:var(--muted);margin-bottom:6px">Paste a careers-page URL hosted on Greenhouse, Ashby, or Lever. We'll verify it before adding.</div>
+  <div class="ob-comp-row">
+    <div class="ob-field" style="flex:1;margin:0"><input type="text" id="ob-company-url" placeholder="https://jobs.ashbyhq.com/acme" autocomplete="off"></div>
+    <button class="ob-btn ob-btn-secondary" id="ob-company-add" onclick="addCompanyUrl(this)" style="white-space:nowrap">Add</button>
+  </div>
+  <div id="ob-company-url-msg" style="font-size:12.5px;margin-top:6px"></div>
+
+  <div class="ob-actions">
+    <button class="ob-btn ob-btn-secondary" onclick="goStep(2)">Back</button>
+    <button class="ob-btn ob-btn-primary" onclick="goStep(4)">Next</button>
+  </div>
+</div>
+
+<!-- Step 4: CV -->
+<div class="ob-step" data-step="4">
+  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot current"></div><div class="dot"></div><div class="dot"></div></div>
   <h2 style="text-align:center;margin-top:0">Your Resume</h2>
   <p class="muted" style="text-align:center">Upload your resume or paste it below. This helps score job fit and generate tailored applications.</p>
 
@@ -1002,15 +1173,15 @@ ${CSS}
   </div>
 
   <div class="ob-actions">
-    <button class="ob-btn ob-btn-secondary" onclick="goStep(2)">Back</button>
-    <button class="ob-btn ob-btn-primary" onclick="goStep(4)">Next</button>
-    <button class="ob-btn ob-btn-secondary" onclick="state.skipCv=true;goStep(4)" style="font-size:13px">Skip CV for now</button>
+    <button class="ob-btn ob-btn-secondary" onclick="goStep(3)">Back</button>
+    <button class="ob-btn ob-btn-primary" onclick="goStep(5)">Next</button>
+    <button class="ob-btn ob-btn-secondary" onclick="state.skipCv=true;goStep(5)" style="font-size:13px">Skip CV for now</button>
   </div>
 </div>
 
-<!-- Step 4: Your Story (optional but valuable) -->
-<div class="ob-step" data-step="4">
-  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot current"></div><div class="dot"></div></div>
+<!-- Step 5: Your Story (optional but valuable) -->
+<div class="ob-step" data-step="5">
+  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot current"></div><div class="dot"></div></div>
   <h2 style="text-align:center;margin-top:0">Your Story</h2>
   <p class="muted" style="text-align:center">This powers your cover letters and tailored applications. Skip now and add later if you prefer.</p>
 
@@ -1045,15 +1216,15 @@ ${CSS}
   </div>
 
   <div class="ob-actions">
-    <button class="ob-btn ob-btn-secondary" onclick="goStep(3)">Back</button>
+    <button class="ob-btn ob-btn-secondary" onclick="goStep(4)">Back</button>
     <button class="ob-btn ob-btn-primary" onclick="completeOnboarding(false, this)">Finish Setup</button>
-    <button class="ob-btn ob-btn-secondary" onclick="goStep(5);completeOnboarding(true, this)" style="font-size:13px">Skip for now</button>
+    <button class="ob-btn ob-btn-secondary" onclick="goStep(6);completeOnboarding(true, this)" style="font-size:13px">Skip for now</button>
   </div>
 </div>
 
-<!-- Step 5: Done + First Scan -->
-<div class="ob-step" data-step="5">
-  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div></div>
+<!-- Step 6: Done + First Scan -->
+<div class="ob-step" data-step="6">
+  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div></div>
   <div style="text-align:center;margin-bottom:24px">
     <div style="font-size:36px;margin-bottom:4px">🎉</div>
     <h2 style="margin:0 0 8px">You're All Set!</h2>
@@ -1082,6 +1253,7 @@ ${CSS}
 <script>
 const INDUSTRIES = ${industriesJson};
 const ROLE_SUGGESTIONS = ${roleSuggestionsJson};
+const COMPANY_CATALOG = ${companyCatalogJson};
 const PREVIEW_MODE = ${previewMode ? 'true' : 'false'};
 
 const state = {
@@ -1089,6 +1261,7 @@ const state = {
   industries: [],
   roles: [],
   strengths: [],
+  companies: [],
   uploadedFile: null,
   uploadedFileName: '',
   skipCv: false,
@@ -1108,7 +1281,94 @@ function goStep(n) {
   document.querySelectorAll('.ob-step').forEach(el => el.classList.remove('active'));
   document.querySelector('[data-step="' + n + '"]').classList.add('active');
   state.step = n;
+  if (n === 3) renderCompanies();
   window.scrollTo(0, 0);
+}
+
+function obEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+function companyKey(c) { return (c.careers_url || '').toLowerCase(); }
+function isCompanySelected(c) { return state.companies.some(x => companyKey(x) === companyKey(c)); }
+
+// Build the company chip grid from the catalog, scoped to the chosen industries
+// (falls back to all fields if none selected). URL-added companies always show.
+function renderCompanies() {
+  const grid = document.getElementById('ob-company-grid');
+  const hint = document.getElementById('ob-company-hint');
+  if (!grid) return;
+  const inds = state.industries.filter(i => COMPANY_CATALOG[i]);
+  const sources = inds.length ? inds : Object.keys(COMPANY_CATALOG);
+  const seen = new Set();
+  const companies = [];
+  sources.forEach(id => (COMPANY_CATALOG[id] || []).forEach(c => {
+    const k = companyKey(c);
+    if (!seen.has(k)) { seen.add(k); companies.push(c); }
+  }));
+  state.companies.forEach(c => {
+    const k = companyKey(c);
+    if (!seen.has(k)) { seen.add(k); companies.push(c); }
+  });
+  if (hint) hint.textContent = inds.length
+    ? 'Suggested companies in your field' + (inds.length > 1 ? 's' : '') + '. Click to select.'
+    : 'Popular companies across fields. Click to select — or filter by picking a field on the previous step.';
+  grid.innerHTML = companies.map(c =>
+    '<div class="ob-industry-card' + (isCompanySelected(c) ? ' selected' : '') + '" data-key="' + obEsc(companyKey(c)) + '" onclick="toggleCompany(this)">' +
+    '<span>' + obEsc(c.name) + '</span><span class="ob-ic-check">✓</span></div>'
+  ).join('');
+  renderCompanies._list = companies;
+}
+
+function toggleCompany(el) {
+  const key = el.dataset.key;
+  const c = (renderCompanies._list || []).find(x => companyKey(x) === key);
+  if (!c) return;
+  if (isCompanySelected(c)) {
+    state.companies = state.companies.filter(x => companyKey(x) !== key);
+    el.classList.remove('selected');
+  } else {
+    state.companies.push(c);
+    el.classList.add('selected');
+  }
+}
+
+async function addCompanyUrl(btn) {
+  const input = document.getElementById('ob-company-url');
+  const msg = document.getElementById('ob-company-url-msg');
+  const url = (input.value || '').trim();
+  if (!url) { input.focus(); return; }
+  msg.style.color = 'var(--muted)';
+  msg.textContent = 'Verifying…';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/onboarding/verify-company', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      msg.style.color = '#b4413c';
+      msg.textContent = data.error || 'Not a recognized Greenhouse, Ashby, or Lever job board.';
+      return;
+    }
+    const c = { name: data.name, careers_url: data.careers_url };
+    if (data.api) c.api = data.api;
+    if (isCompanySelected(c)) {
+      msg.style.color = 'var(--muted)';
+      msg.textContent = data.name + ' is already in your list.';
+    } else {
+      state.companies.push(c);
+      renderCompanies();
+      msg.style.color = '#3A6B45';
+      msg.textContent = '✓ Added ' + data.name + ' — ' + data.count + ' open roles.';
+      input.value = '';
+    }
+  } catch (e) {
+    msg.style.color = '#b4413c';
+    msg.textContent = 'Could not verify: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function switchPreview(view) {
@@ -1307,21 +1567,23 @@ async function completeOnboarding(skipStory, btn) {
   const buildDoneList = () => {
     const hasCv = !skipCv && (!!document.getElementById('ob-cv')?.value?.trim() || !!state.uploadedFile);
     const list = document.getElementById('ob-done-list');
+    const companyCount = state.companies.length;
     list.innerHTML = [
       { label: 'Profile (config/profile.yml)', ok: true },
       { label: 'Job preferences (portals.yml)', ok: true },
+      { label: companyCount ? companyCount + ' companies to scan (portals.yml)' : 'Companies to scan', ok: companyCount > 0, hint: 'add companies in portals.yml or re-run setup' },
       { label: 'Resume (cv.md)', ok: hasCv },
       { label: 'Cover letter narrative', ok: hasNarrative },
     ].map(item =>
-      '<div class="ob-done-check"><span class="' + (item.ok ? 'ob-check' : 'ob-skip') + '">' + (item.ok ? '✓' : '⏭') + '</span> ' + item.label + (item.ok ? '' : ' <span class="muted">— add later in config/profile.yml</span>') + '</div>'
+      '<div class="ob-done-check"><span class="' + (item.ok ? 'ob-check' : 'ob-skip') + '">' + (item.ok ? '✓' : '⏭') + '</span> ' + item.label + (item.ok ? '' : ' <span class="muted">— ' + (item.hint || 'add later in config/profile.yml') + '</span>') + '</div>'
     ).join('');
   };
 
   if (PREVIEW_MODE) {
     buildDoneList();
-    const actionsEl = document.querySelector('[data-step="5"] .ob-done-actions');
+    const actionsEl = document.querySelector('[data-step="6"] .ob-done-actions');
     if (actionsEl) actionsEl.innerHTML = '<a href="/" class="ob-btn ob-btn-secondary" style="text-decoration:none">Back to Dashboard</a><span class="muted" style="padding:10px">Preview complete — no files were changed.</span>';
-    goStep(5);
+    goStep(6);
     return;
   }
 
@@ -1332,6 +1594,7 @@ async function completeOnboarding(skipStory, btn) {
     linkedin: document.getElementById('ob-linkedin').value.trim(),
     industries: state.industries,
     roles: state.roles,
+    companies: state.companies,
     comp: document.getElementById('ob-comp').value.trim(),
     currency: document.getElementById('ob-currency').value,
     cv: skipCv ? '' : document.getElementById('ob-cv').value,
@@ -1365,7 +1628,7 @@ async function completeOnboarding(skipStory, btn) {
   }
 
   buildDoneList();
-  goStep(5);
+  goStep(6);
 }
 </script>
 </body>
@@ -1901,7 +2164,6 @@ function renderPipeline(query) {
 
   const reportLinkRe = /\[([^\]]+)\]\(([^)]+)\)/;
   const scanHistory = loadScanHistory();
-  const MOVE_TARGETS = ['Evaluated', 'Shortlisted', 'Applied', 'Responded', 'Interview', 'Offer', 'Rejected', 'Discarded'];
   // "New" = rows added to the pipeline on the most recent date present
   const addedDates = rows.map(r => (r[idx.date] || '').trim()).filter(Boolean).sort();
   const latestAdded = addedDates.length ? addedDates[addedDates.length - 1] : '';
@@ -1948,8 +2210,9 @@ function renderPipeline(query) {
     const reportItem = reportFile ? `<a href="/report?file=${encodeURIComponent(reportFile)}" data-report-file="${escapeHtml(reportFile)}" data-report-title="${escapeHtml(r[idx.company] + ' — ' + r[idx.role])}">📄&nbsp; View report</a>` : '';
     const openItem = url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">↗&nbsp; Open posting</a>` : '';
     const packItem = packPath ? `<a href="/apply?row=${encodeURIComponent(r[idx.num] || '')}">📎&nbsp; Apply pack</a>` : '';
-    const moveItems = MOVE_TARGETS.filter(s => s !== status).map(s => `<button onclick="moveCard('${num}','${s}',this)">${s}</button>`).join('');
     const delItem = `<button class="danger" onclick="deleteRow('${num}', this)">🗑&nbsp; Delete</button>`;
+    const topItems = [applyItem, reportItem, openItem, packItem].filter(Boolean).join('');
+    const menuInner = topItems ? `${topItems}<div class="sep"></div>${delItem}` : delItem;
     const showApply = url && (status === 'Evaluated' || status === 'Shortlisted');
     const applyBtn = showApply ? `<button class="btn-apply" onclick="applyJob('${escapeHtml(url)}', this)">Apply</button>` : '';
 
@@ -1958,10 +2221,10 @@ function renderPipeline(query) {
       ? `<span class="kmeta" data-rel="${escapeHtml(addedRaw)}" title="Added to pipeline ${escapeHtml(addedRaw)}">${escapeHtml(addedRaw)}</span>`
       : (datePosted ? `<span class="kmeta" data-rel="${escapeHtml(datePosted)}">${escapeHtml(datePosted)}</span>` : '');
 
-    return `<div class="kc${closed ? ' closed' : ''}${isNew ? ' is-new' : ''}" data-num="${num}" data-status="${escapeHtml(status)}" data-new="${isNew ? '1' : ''}" data-search="${searchStr}">
+    return `<div class="kc${closed ? ' closed' : ''}${isNew ? ' is-new' : ''}" draggable="true" data-num="${num}" data-status="${escapeHtml(status)}"${url ? ` data-url="${escapeHtml(url)}"` : ''} data-new="${isNew ? '1' : ''}" data-search="${searchStr}">
       <div class="kc-top">
         <div><div class="co">${company}${isNew ? ' <span class="new-badge">NEW</span>' : ''}</div><div class="ro">${role}</div></div>
-        <div class="menu"><button class="icon-btn" title="Actions" style="width:28px;height:28px;font-size:13px" onclick="toggleMenu(event, this)">⋯</button><div class="menu-pop">${applyItem}${reportItem}${openItem}${packItem}<div class="sep"></div><div class="label">Move to</div>${moveItems}<div class="sep"></div>${delItem}</div></div>
+        <div class="menu"><button class="icon-btn" title="Actions" style="width:28px;height:28px;font-size:13px" onclick="toggleMenu(event, this)">⋯</button><div class="menu-pop">${menuInner}</div></div>
       </div>
       ${note ? `<div class="kc-note" style="font-size:11.5px;color:var(--muted);margin-top:7px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${escapeHtml(note)}</div>` : ''}
       <div class="foot"><span class="score-mini ${scoreClass(scoreRaw)}">${escapeHtml(scoreRaw || '—')}</span>${metaBit}${applyBtn ? `<span style="margin-left:auto">${applyBtn}</span>` : ''}</div>
@@ -1973,19 +2236,23 @@ function renderPipeline(query) {
     const inner = cards.length
       ? cards.map(card).join('')
       : `<div class="kc-empty">${c.key === 'Offer' ? 'Your next milestone' : 'Nothing here yet'}</div>`;
-    return `<div class="col"><div class="col-h"><span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div>${inner}</div>`;
+    return `<div class="col" data-status="${c.statuses[0]}" data-statuses="${c.statuses.join(',')}"><div class="col-h"><span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div>${inner}</div>`;
   }).join('');
 
   const closedCards = rows.filter(r => CLOSED.includes((r[idx.status] || '').trim()));
-  const closedHtml = closedCards.length
-    ? `<details class="closed-lane"><summary>Closed — ${closedCards.length} (rejected / discarded)</summary><div class="closed-grid">${closedCards.map(card).join('')}</div></details>`
-    : '';
+  const closedInner = closedCards.length
+    ? `<div class="closed-grid">${closedCards.map(card).join('')}</div>`
+    : `<div class="kc-empty" style="margin-top:8px">Drag a card here to mark it closed</div>`;
+  const closedSummary = closedCards.length
+    ? `Closed — ${closedCards.length} (rejected / discarded) · drag a card here to close it`
+    : 'Closed · drag a card here to close it';
+  const closedHtml = `<details class="closed-lane" data-status="Discarded" data-statuses="${CLOSED.join(',')}"${closedCards.length ? '' : ' open'}><summary>${closedSummary}</summary>${closedInner}</details>`;
 
   const body = `
 <div class="toolbar">
   <div>
     <h1>Pipeline</h1>
-    <div class="sub">Everything you're actively pursuing, by stage. Use a card's ⋯ menu to move it forward as things progress.</div>
+    <div class="sub">Everything you're actively pursuing, by stage. Drag a card between columns to move it forward — or click it to open the posting.</div>
   </div>
   <div class="tools">
     ${latestAdded ? `<button class="chip-toggle" id="new-toggle" title="Added to your pipeline on the latest date (${escapeHtml(latestAdded)})">✨ New<span class="chip-count">${newCount}</span></button>` : ''}
@@ -2049,6 +2316,51 @@ function submitAddPosting(e) {
   if (newToggle) newToggle.addEventListener('click', () => { newOnly = !newOnly; newToggle.classList.toggle('active', newOnly); apply(); });
   if (newToggle && new URLSearchParams(location.search).get('new') === '1') { newOnly = true; newToggle.classList.add('active'); apply(); }
 })();
+// ----- drag-and-drop between columns + click-to-open-posting -----
+(function(){
+  let dragNum = null, dragged = null, didDrag = false;
+  const dropZones = document.querySelectorAll('[data-statuses]');
+  document.querySelectorAll('.kc[draggable]').forEach(c => {
+    c.addEventListener('dragstart', e => {
+      dragNum = c.dataset.num; dragged = c; didDrag = true;
+      c.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', dragNum); } catch (_) {}
+      const lane = document.querySelector('.closed-lane'); if (lane) lane.open = true;
+    });
+    c.addEventListener('dragend', () => {
+      c.classList.remove('dragging');
+      dropZones.forEach(t => t.classList.remove('drop-target'));
+      dragNum = null; dragged = null;
+      setTimeout(() => { didDrag = false; }, 30);
+    });
+    c.addEventListener('click', e => {
+      if (didDrag) return;
+      if (e.target.closest('.menu') || e.target.closest('a') || e.target.closest('button')) return;
+      if (c.dataset.url) window.open(c.dataset.url, '_blank', 'noopener');
+    });
+  });
+  dropZones.forEach(t => {
+    t.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; t.classList.add('drop-target'); });
+    t.addEventListener('dragleave', e => { if (!t.contains(e.relatedTarget)) t.classList.remove('drop-target'); });
+    t.addEventListener('drop', e => {
+      e.preventDefault();
+      t.classList.remove('drop-target');
+      if (!dragNum || !dragged) return;
+      const status = t.dataset.status;
+      if (!status) return;
+      if ((t.dataset.statuses || '').split(',').includes(dragged.dataset.status)) return; // already in this lane
+      fetch('/api/set-status', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ num: dragNum, status })
+      }).then(r => r.json()).then(j => {
+        if (!j.ok) { showToast('Move failed: ' + (j.error || 'unknown'), true); return; }
+        showToast('Moved to ' + status);
+        setTimeout(() => location.reload(), 350);
+      }).catch(err => showToast(err.message, true));
+    });
+  });
+})();
 </script>
 `;
   return shell('Pipeline', body, { view: 'pipeline', ...getCounts(), wide: true });
@@ -2104,6 +2416,29 @@ function extractComp(note) {
     return { display: 'Not disclosed', sortKey: 0 };
   }
   return { display: '', sortKey: 0 };
+}
+
+// Collapse the many spellings of a remote location into one canonical bucket so
+// the Location filter shows a single "Remote (US)" option instead of "Remote US",
+// "Remote, US", "Remote - US", "US Remote", "United States (remote)", etc. Cards
+// still display the raw string; only the filter grouping is normalized.
+// Non-remote or unrecognized values pass through unchanged (one option each).
+function locationGroup(raw) {
+  const s = (raw || '').trim();
+  if (!s) return '';                       // empty → "Unknown"
+  const low = s.toLowerCase();
+  if (!/remote/.test(low)) return s;       // on-site/hybrid → keep as-is
+  // Region detected alongside "remote". US is checked first so combos that list
+  // US cities + "Remote US" (and the "Remote East/West" coast shorthand) group as US.
+  if (/\b(u\.?s\.?a?|united states)\b/.test(low) || /remote\s*(east|west)\b/.test(low)) return 'Remote (US)';
+  if (/canada|toronto|vancouver|montreal/.test(low)) return 'Remote (Canada)';
+  if (/\b(uk|united kingdom|england|scotland|wales|london)\b/.test(low)) return 'Remote (UK)';
+  if (/ireland/.test(low)) return 'Remote (Ireland)';
+  if (/sweden/.test(low)) return 'Remote (Sweden)';
+  if (/spain/.test(low)) return 'Remote (Spain)';
+  if (/germany/.test(low)) return 'Remote (Germany)';
+  if (/\b(eu|europe)\b/.test(low)) return 'Remote (EU)';
+  return 'Remote';                         // remote, region unspecified
 }
 
 // Build a url→first_seen map from scan-history.tsv. Used as a proxy for
@@ -2245,6 +2580,7 @@ function renderInbox(query) {
     const role = r[idx.role] || '';
     const datePosted = scanHistory.get(url) || '';
     const location = idx.location >= 0 ? (r[idx.location] || '') : '';
+    const locGroup = locationGroup(location);
     const note = r[idx.note] || '';
     const comp = extractComp(note);
     const firstSeen = r[idx.added] || '';
@@ -2267,7 +2603,7 @@ function renderInbox(query) {
       metaDate ? `<span data-rel="${escapeHtml(metaDate)}" title="Added to your inbox ${escapeHtml(metaDate)}">${escapeHtml(metaDate)}</span>` : '',
     ].filter(Boolean).join('');
 
-    return `<div class="lead${isNew ? ' is-new' : ''}" data-verdict="${escapeHtml(verdict)}" data-score-bucket="${scoreBucket}" data-company="${escapeHtml(company)}" data-location="${escapeHtml(location)}" data-score="${escapeHtml(scoreNum)}" data-pay="${comp.sortKey}" data-posted="${escapeHtml(datePosted)}" data-added="${escapeHtml(firstSeen)}" data-new="${isNew ? '1' : ''}" data-search="${searchStr}">
+    return `<div class="lead${isNew ? ' is-new' : ''}" data-verdict="${escapeHtml(verdict)}" data-score-bucket="${scoreBucket}" data-company="${escapeHtml(company)}" data-location="${escapeHtml(locGroup)}" data-score="${escapeHtml(scoreNum)}" data-pay="${comp.sortKey}" data-posted="${escapeHtml(datePosted)}" data-added="${escapeHtml(firstSeen)}" data-new="${isNew ? '1' : ''}" data-search="${searchStr}">
       <div class="score-chip ${scoreClass(scoreRaw)}">${escapeHtml(scoreRaw || '—')}</div>
       <div class="lead-main">
         <div class="lead-co">${escapeHtml(company)}${isNew ? ' <span class="new-badge">NEW</span>' : ''}</div>
@@ -2290,7 +2626,7 @@ function renderInbox(query) {
   sorted.forEach(r => {
     const v = r[idx.verdict] || '';
     if (v) verdictSet.add(v);
-    const loc = idx.location >= 0 ? (r[idx.location] || '') : '';
+    const loc = locationGroup(idx.location >= 0 ? (r[idx.location] || '') : '');
     locationSet.add(loc); // include empty string for "Unknown"
     const co = r[idx.company] || '';
     if (co) companySet.add(co);
@@ -2630,7 +2966,7 @@ const server = createServer(async (req, res) => {
           payload = await readOnboardingBody(req);
         }
 
-        const { name, email, location, linkedin, industries, roles, comp, currency, cv } = payload;
+        const { name, email, location, linkedin, industries, roles, companies, comp, currency, cv } = payload;
 
         mkdirSync(join(ROOT, 'config'), { recursive: true });
         mkdirSync(join(ROOT, 'data'), { recursive: true });
@@ -2684,7 +3020,21 @@ const server = createServer(async (req, res) => {
         ['Junior', 'Intern', 'Internship'].forEach(kw => { portalsYml += '    - ' + esc(kw) + '\n'; });
         portalsYml += '  seniority_boost:\n';
         ['Senior', 'Staff', 'Principal', 'Lead', 'Head'].forEach(kw => { portalsYml += '    - ' + esc(kw) + '\n'; });
-        portalsYml += '\ntracked_companies: []\n';
+        // Companies the user picked/added in the wizard. Each was already
+        // validated to a Greenhouse/Ashby/Lever board, so scan.mjs can use them.
+        const validCompanies = (Array.isArray(companies) ? companies : [])
+          .filter(c => c && c.name && c.careers_url);
+        if (validCompanies.length) {
+          portalsYml += '\ntracked_companies:\n';
+          validCompanies.forEach(c => {
+            portalsYml += '  - name: ' + esc(c.name) + '\n';
+            portalsYml += '    careers_url: ' + esc(c.careers_url) + '\n';
+            if (c.api) portalsYml += '    api: ' + esc(c.api) + '\n';
+            portalsYml += '    enabled: true\n';
+          });
+        } else {
+          portalsYml += '\ntracked_companies: []\n';
+        }
         portalsYml += '\nsearch_queries: []\n';
         writeFileSync(join(ROOT, 'portals.yml'), portalsYml);
 
@@ -2701,6 +3051,30 @@ const server = createServer(async (req, res) => {
         }
 
         return sendJson(res, 200, { ok: true });
+      } catch (e) {
+        return sendJson(res, 500, { ok: false, error: e.message });
+      }
+    }
+
+    if (pathname === '/api/onboarding/verify-company' && req.method === 'POST') {
+      try {
+        const body = await readOnboardingBody(req);
+        const detected = detectAtsFromUrl(body.url);
+        if (!detected) {
+          return sendJson(res, 200, { ok: false, error: 'Not a recognized Greenhouse, Ashby, or Lever job board.' });
+        }
+        const count = await countAtsJobs(detected);
+        if (count == null) {
+          return sendJson(res, 200, { ok: false, error: "Couldn't reach that board — double-check the URL." });
+        }
+        if (count === 0) {
+          return sendJson(res, 200, { ok: false, error: 'That board has no open roles right now.' });
+        }
+        // Match the catalog's storage format: keep an explicit api only for
+        // Greenhouse; scan.mjs derives Ashby/Lever APIs from careers_url.
+        const out = { ok: true, name: detected.name, careers_url: detected.careers_url, count };
+        if (detected.type === 'greenhouse') out.api = detected.api;
+        return sendJson(res, 200, out);
       } catch (e) {
         return sendJson(res, 500, { ok: false, error: e.message });
       }
