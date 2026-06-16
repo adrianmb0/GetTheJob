@@ -56,7 +56,161 @@ const ROLE_SUGGESTIONS = {
   other: ['Project Manager', 'Product Manager', 'Data Analyst', 'Business Analyst', 'Operations Manager', 'Marketing Manager', 'UX Designer', 'Software Engineer'],
 };
 
+// Curated companies the onboarding wizard offers per industry. Every careers_url
+// points at a Greenhouse/Ashby/Lever board so scan.mjs can detect the API and
+// actually return jobs — each was verified live against its ATS endpoint. Users
+// can also paste any other Greenhouse/Ashby/Lever URL in the wizard.
+const COMPANY_CATALOG = {
+  tech: [
+    { name: "Anthropic", careers_url: "https://job-boards.greenhouse.io/anthropic", api: "https://boards-api.greenhouse.io/v1/boards/anthropic/jobs" },
+    { name: "Cohere", careers_url: "https://jobs.ashbyhq.com/cohere" },
+    { name: "Mistral AI", careers_url: "https://jobs.lever.co/mistral" },
+    { name: "Perplexity", careers_url: "https://jobs.ashbyhq.com/perplexity" },
+    { name: "ElevenLabs", careers_url: "https://jobs.ashbyhq.com/elevenlabs" },
+    { name: "Vercel", careers_url: "https://job-boards.greenhouse.io/vercel", api: "https://boards-api.greenhouse.io/v1/boards/vercel/jobs" },
+    { name: "Zapier", careers_url: "https://jobs.ashbyhq.com/zapier" },
+    { name: "Airtable", careers_url: "https://job-boards.greenhouse.io/airtable", api: "https://boards-api.greenhouse.io/v1/boards/airtable/jobs" },
+    { name: "Supabase", careers_url: "https://jobs.ashbyhq.com/supabase" },
+    { name: "Palantir", careers_url: "https://jobs.lever.co/palantir" },
+    { name: "Glean", careers_url: "https://job-boards.greenhouse.io/gleanwork", api: "https://boards-api.greenhouse.io/v1/boards/gleanwork/jobs" },
+    { name: "Runway", careers_url: "https://job-boards.greenhouse.io/runwayml", api: "https://boards-api.greenhouse.io/v1/boards/runwayml/jobs" },
+    { name: "Synthesia", careers_url: "https://jobs.ashbyhq.com/synthesia" },
+    { name: "DeepL", careers_url: "https://jobs.ashbyhq.com/DeepL" },
+    { name: "Spotify", careers_url: "https://jobs.lever.co/spotify" },
+    { name: "Vinted", careers_url: "https://jobs.lever.co/vinted" },
+    { name: "Intercom", careers_url: "https://job-boards.greenhouse.io/intercom", api: "https://boards-api.greenhouse.io/v1/boards/intercom/jobs" },
+    { name: "Temporal", careers_url: "https://job-boards.greenhouse.io/temporal", api: "https://boards-api.greenhouse.io/v1/boards/temporal/jobs" },
+    { name: "Pinecone", careers_url: "https://jobs.ashbyhq.com/pinecone" },
+    { name: "n8n", careers_url: "https://jobs.ashbyhq.com/n8n" },
+  ],
+  finance: [
+    { name: "Stripe", careers_url: "https://job-boards.greenhouse.io/stripe", api: "https://boards-api.greenhouse.io/v1/boards/stripe/jobs" },
+    { name: "Plaid", careers_url: "https://jobs.ashbyhq.com/plaid" },
+    { name: "Brex", careers_url: "https://job-boards.greenhouse.io/brex", api: "https://boards-api.greenhouse.io/v1/boards/brex/jobs" },
+    { name: "Ramp", careers_url: "https://jobs.ashbyhq.com/ramp" },
+    { name: "Chime", careers_url: "https://job-boards.greenhouse.io/chime", api: "https://boards-api.greenhouse.io/v1/boards/chime/jobs" },
+    { name: "Affirm", careers_url: "https://job-boards.greenhouse.io/affirm", api: "https://boards-api.greenhouse.io/v1/boards/affirm/jobs" },
+    { name: "Robinhood", careers_url: "https://job-boards.greenhouse.io/robinhood", api: "https://boards-api.greenhouse.io/v1/boards/robinhood/jobs" },
+    { name: "Coinbase", careers_url: "https://job-boards.greenhouse.io/coinbase", api: "https://boards-api.greenhouse.io/v1/boards/coinbase/jobs" },
+    { name: "Gusto", careers_url: "https://job-boards.greenhouse.io/gusto", api: "https://boards-api.greenhouse.io/v1/boards/gusto/jobs" },
+    { name: "Carta", careers_url: "https://job-boards.greenhouse.io/carta", api: "https://boards-api.greenhouse.io/v1/boards/carta/jobs" },
+    { name: "Mercury", careers_url: "https://job-boards.greenhouse.io/mercury", api: "https://boards-api.greenhouse.io/v1/boards/mercury/jobs" },
+    { name: "Betterment", careers_url: "https://job-boards.greenhouse.io/betterment", api: "https://boards-api.greenhouse.io/v1/boards/betterment/jobs" },
+    { name: "Wealthfront", careers_url: "https://jobs.lever.co/wealthfront" },
+    { name: "Marqeta", careers_url: "https://job-boards.greenhouse.io/marqeta", api: "https://boards-api.greenhouse.io/v1/boards/marqeta/jobs" },
+    { name: "Modern Treasury", careers_url: "https://jobs.ashbyhq.com/moderntreasury" },
+    { name: "Clearco", careers_url: "https://jobs.ashbyhq.com/clearco" },
+    { name: "Public", careers_url: "https://job-boards.greenhouse.io/public", api: "https://boards-api.greenhouse.io/v1/boards/public/jobs" },
+    { name: "Alpaca", careers_url: "https://job-boards.greenhouse.io/alpaca", api: "https://boards-api.greenhouse.io/v1/boards/alpaca/jobs" },
+  ],
+  health: [
+    { name: "Oscar Health", careers_url: "https://job-boards.greenhouse.io/oscar", api: "https://boards-api.greenhouse.io/v1/boards/oscar/jobs" },
+    { name: "Ro", careers_url: "https://jobs.lever.co/ro" },
+    { name: "Cedar", careers_url: "https://jobs.ashbyhq.com/cedar" },
+    { name: "Benchling", careers_url: "https://jobs.ashbyhq.com/benchling" },
+    { name: "Included Health", careers_url: "https://jobs.lever.co/includedhealth" },
+    { name: "Maven Clinic", careers_url: "https://job-boards.greenhouse.io/mavenclinic", api: "https://boards-api.greenhouse.io/v1/boards/mavenclinic/jobs" },
+    { name: "Headway", careers_url: "https://jobs.ashbyhq.com/headway" },
+    { name: "Komodo Health", careers_url: "https://job-boards.greenhouse.io/komodohealth", api: "https://boards-api.greenhouse.io/v1/boards/komodohealth/jobs" },
+    { name: "Commure", careers_url: "https://jobs.ashbyhq.com/commure" },
+  ],
+  education: [
+    { name: "Coursera", careers_url: "https://job-boards.greenhouse.io/coursera", api: "https://boards-api.greenhouse.io/v1/boards/coursera/jobs" },
+    { name: "Duolingo", careers_url: "https://job-boards.greenhouse.io/duolingo", api: "https://boards-api.greenhouse.io/v1/boards/duolingo/jobs" },
+    { name: "Udemy", careers_url: "https://job-boards.greenhouse.io/udemy", api: "https://boards-api.greenhouse.io/v1/boards/udemy/jobs" },
+    { name: "Outschool", careers_url: "https://job-boards.greenhouse.io/outschool", api: "https://boards-api.greenhouse.io/v1/boards/outschool/jobs" },
+    { name: "Guild", careers_url: "https://job-boards.greenhouse.io/guild", api: "https://boards-api.greenhouse.io/v1/boards/guild/jobs" },
+    { name: "Newsela", careers_url: "https://job-boards.greenhouse.io/newsela", api: "https://boards-api.greenhouse.io/v1/boards/newsela/jobs" },
+    { name: "NerdWallet", careers_url: "https://jobs.ashbyhq.com/nerdwallet" },
+    { name: "Multiverse", careers_url: "https://jobs.ashbyhq.com/multiverse" },
+    { name: "Handshake", careers_url: "https://jobs.ashbyhq.com/handshake" },
+  ],
+  climate: [
+    { name: "Watershed", careers_url: "https://job-boards.greenhouse.io/watershed", api: "https://boards-api.greenhouse.io/v1/boards/watershed/jobs" },
+    { name: "Arcadia", careers_url: "https://jobs.lever.co/arcadia" },
+    { name: "Form Energy", careers_url: "https://jobs.ashbyhq.com/formenergy" },
+    { name: "Crusoe", careers_url: "https://jobs.ashbyhq.com/crusoe" },
+    { name: "Sila", careers_url: "https://jobs.lever.co/sila" },
+    { name: "Charm Industrial", careers_url: "https://jobs.lever.co/charmindustrial" },
+    { name: "Aurora Solar", careers_url: "https://jobs.ashbyhq.com/aurorasolar" },
+    { name: "SPAN", careers_url: "https://jobs.ashbyhq.com/span" },
+    { name: "Palmetto", careers_url: "https://job-boards.greenhouse.io/palmetto", api: "https://boards-api.greenhouse.io/v1/boards/palmetto/jobs" },
+    { name: "Twelve", careers_url: "https://jobs.ashbyhq.com/twelve" },
+  ],
+  media: [
+    { name: "Patreon", careers_url: "https://jobs.ashbyhq.com/patreon" },
+    { name: "Vox Media", careers_url: "https://job-boards.greenhouse.io/voxmedia", api: "https://boards-api.greenhouse.io/v1/boards/voxmedia/jobs" },
+    { name: "The Athletic", careers_url: "https://jobs.lever.co/theathletic" },
+    { name: "Discord", careers_url: "https://job-boards.greenhouse.io/discord", api: "https://boards-api.greenhouse.io/v1/boards/discord/jobs" },
+    { name: "Cameo", careers_url: "https://job-boards.greenhouse.io/cameo", api: "https://boards-api.greenhouse.io/v1/boards/cameo/jobs" },
+    { name: "Fandom", careers_url: "https://job-boards.greenhouse.io/fandom", api: "https://boards-api.greenhouse.io/v1/boards/fandom/jobs" },
+    { name: "Musixmatch", careers_url: "https://jobs.lever.co/musixmatch" },
+  ],
+  retail: [
+    { name: "Instacart", careers_url: "https://job-boards.greenhouse.io/instacart", api: "https://boards-api.greenhouse.io/v1/boards/instacart/jobs" },
+    { name: "Faire", careers_url: "https://job-boards.greenhouse.io/faire", api: "https://boards-api.greenhouse.io/v1/boards/faire/jobs" },
+    { name: "Glossier", careers_url: "https://job-boards.greenhouse.io/glossier", api: "https://boards-api.greenhouse.io/v1/boards/glossier/jobs" },
+    { name: "Gopuff", careers_url: "https://jobs.lever.co/gopuff" },
+    { name: "StockX", careers_url: "https://job-boards.greenhouse.io/stockx", api: "https://boards-api.greenhouse.io/v1/boards/stockx/jobs" },
+    { name: "OLIPOP", careers_url: "https://job-boards.greenhouse.io/olipop", api: "https://boards-api.greenhouse.io/v1/boards/olipop/jobs" },
+    { name: "Ritual", careers_url: "https://job-boards.greenhouse.io/ritual", api: "https://boards-api.greenhouse.io/v1/boards/ritual/jobs" },
+  ],
+  consulting: [
+    { name: "Thoughtworks", careers_url: "https://job-boards.greenhouse.io/thoughtworks", api: "https://boards-api.greenhouse.io/v1/boards/thoughtworks/jobs" },
+  ],
+  manufacturing: [
+    { name: "Lucid Motors", careers_url: "https://job-boards.greenhouse.io/lucidmotors", api: "https://boards-api.greenhouse.io/v1/boards/lucidmotors/jobs" },
+    { name: "Shield AI", careers_url: "https://jobs.lever.co/shieldai" },
+    { name: "Figure", careers_url: "https://job-boards.greenhouse.io/figure", api: "https://boards-api.greenhouse.io/v1/boards/figure/jobs" },
+    { name: "Formlabs", careers_url: "https://job-boards.greenhouse.io/formlabs", api: "https://boards-api.greenhouse.io/v1/boards/formlabs/jobs" },
+    { name: "Markforged", careers_url: "https://job-boards.greenhouse.io/markforged", api: "https://boards-api.greenhouse.io/v1/boards/markforged/jobs" },
+  ],
+};
+
 // ----- helpers -----
+
+// Detect a Greenhouse/Ashby/Lever board from a pasted careers URL and derive the
+// API endpoint + a display name. Mirrors scan.mjs's detectApi so the onboarding
+// "add a company" field only accepts boards the scanner can actually read.
+// Returns null if the URL isn't a recognized board.
+function detectAtsFromUrl(rawUrl) {
+  let url = String(rawUrl || '').trim();
+  if (!url) return null;
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  let host, path;
+  try { const u = new URL(url); host = u.hostname.toLowerCase(); path = u.pathname; }
+  catch { return null; }
+  const slugOf = () => (path.split('/').filter(Boolean)[0] || '').trim();
+  const titleize = (s) => s.replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim();
+
+  if (/(^|\.)ashbyhq\.com$/.test(host)) {
+    const slug = slugOf(); if (!slug) return null;
+    return { type: 'ashby', name: titleize(slug), careers_url: `https://jobs.ashbyhq.com/${slug}`,
+      api: `https://api.ashbyhq.com/posting-api/job-board/${slug}?includeCompensation=true` };
+  }
+  if (/(^|\.)lever\.co$/.test(host)) {
+    const slug = slugOf(); if (!slug) return null;
+    return { type: 'lever', name: titleize(slug), careers_url: `https://jobs.lever.co/${slug}`,
+      api: `https://api.lever.co/v0/postings/${slug}?mode=json` };
+  }
+  if (/greenhouse\.io$/.test(host)) {
+    const slug = slugOf(); if (!slug) return null;
+    return { type: 'greenhouse', name: titleize(slug), careers_url: `https://job-boards.greenhouse.io/${slug}`,
+      api: `https://boards-api.greenhouse.io/v1/boards/${slug}/jobs` };
+  }
+  return null;
+}
+
+// Hit a detected ATS API and return the live open-role count (null on failure).
+async function countAtsJobs(detected) {
+  try {
+    const r = await fetch(detected.api, { signal: AbortSignal.timeout(8000), headers: { 'User-Agent': 'Mozilla/5.0 (GetTheJob onboarding)' } });
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (detected.type === 'lever') return Array.isArray(j) ? j.length : null;
+    return Array.isArray(j.jobs) ? j.jobs.length : null;
+  } catch { return null; }
+}
 
 function escapeHtml(s) {
   if (s == null) return '';
@@ -800,6 +954,7 @@ function renderOnboarding(previewMode = false) {
 
   const industriesJson = JSON.stringify(INDUSTRIES);
   const roleSuggestionsJson = JSON.stringify(ROLE_SUGGESTIONS);
+  const companyCatalogJson = JSON.stringify(COMPANY_CATALOG);
 
   return `<!doctype html>
 <html lang="en">
@@ -811,7 +966,7 @@ function renderOnboarding(previewMode = false) {
 <style>
 ${CSS}
 .onboarding { max-width: 1100px; margin: 0 auto; padding: 20px 32px 40px; }
-.ob-step[data-step="1"], .ob-step[data-step="2"], .ob-step[data-step="3"], .ob-step[data-step="4"], .ob-step[data-step="5"] { max-width: 800px; margin: 0 auto; }
+.ob-step[data-step="1"], .ob-step[data-step="2"], .ob-step[data-step="3"], .ob-step[data-step="4"], .ob-step[data-step="5"], .ob-step[data-step="6"] { max-width: 800px; margin: 0 auto; }
 .ob-hero { text-align: center; margin-bottom: 12px; }
 .ob-hero h1 { font-size: 26px; margin: 0 0 4px; }
 .ob-hero .ob-icon { font-size: 32px; margin-bottom: 4px; }
@@ -974,9 +1129,32 @@ ${CSS}
   </div>
 </div>
 
-<!-- Step 3: CV -->
+<!-- Step 3: Companies to track -->
 <div class="ob-step" data-step="3">
-  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot current"></div><div class="dot"></div><div class="dot"></div></div>
+  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot current"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+  <h2 style="text-align:center;margin-top:0">Where Should We Look?</h2>
+  <p class="muted" style="text-align:center">Pick a few companies to track. The scanner checks their job boards for roles matching your profile — free, no AI needed.</p>
+
+  <div id="ob-company-hint" class="ob-hint" style="font-size:12px;color:var(--muted);margin-bottom:8px"></div>
+  <div class="ob-industry-grid" id="ob-company-grid"></div>
+
+  <div class="ob-section-title" style="margin-top:24px">Add another company <span style="font-weight:400;color:var(--muted)">(optional)</span></div>
+  <div class="ob-hint" style="font-size:12px;color:var(--muted);margin-bottom:6px">Paste a careers-page URL hosted on Greenhouse, Ashby, or Lever. We'll verify it before adding.</div>
+  <div class="ob-comp-row">
+    <div class="ob-field" style="flex:1;margin:0"><input type="text" id="ob-company-url" placeholder="https://jobs.ashbyhq.com/acme" autocomplete="off"></div>
+    <button class="ob-btn ob-btn-secondary" id="ob-company-add" onclick="addCompanyUrl(this)" style="white-space:nowrap">Add</button>
+  </div>
+  <div id="ob-company-url-msg" style="font-size:12.5px;margin-top:6px"></div>
+
+  <div class="ob-actions">
+    <button class="ob-btn ob-btn-secondary" onclick="goStep(2)">Back</button>
+    <button class="ob-btn ob-btn-primary" onclick="goStep(4)">Next</button>
+  </div>
+</div>
+
+<!-- Step 4: CV -->
+<div class="ob-step" data-step="4">
+  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot current"></div><div class="dot"></div><div class="dot"></div></div>
   <h2 style="text-align:center;margin-top:0">Your Resume</h2>
   <p class="muted" style="text-align:center">Upload your resume or paste it below. This helps score job fit and generate tailored applications.</p>
 
@@ -995,15 +1173,15 @@ ${CSS}
   </div>
 
   <div class="ob-actions">
-    <button class="ob-btn ob-btn-secondary" onclick="goStep(2)">Back</button>
-    <button class="ob-btn ob-btn-primary" onclick="goStep(4)">Next</button>
-    <button class="ob-btn ob-btn-secondary" onclick="state.skipCv=true;goStep(4)" style="font-size:13px">Skip CV for now</button>
+    <button class="ob-btn ob-btn-secondary" onclick="goStep(3)">Back</button>
+    <button class="ob-btn ob-btn-primary" onclick="goStep(5)">Next</button>
+    <button class="ob-btn ob-btn-secondary" onclick="state.skipCv=true;goStep(5)" style="font-size:13px">Skip CV for now</button>
   </div>
 </div>
 
-<!-- Step 4: Your Story (optional but valuable) -->
-<div class="ob-step" data-step="4">
-  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot current"></div><div class="dot"></div></div>
+<!-- Step 5: Your Story (optional but valuable) -->
+<div class="ob-step" data-step="5">
+  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot current"></div><div class="dot"></div></div>
   <h2 style="text-align:center;margin-top:0">Your Story</h2>
   <p class="muted" style="text-align:center">This powers your cover letters and tailored applications. Skip now and add later if you prefer.</p>
 
@@ -1038,15 +1216,15 @@ ${CSS}
   </div>
 
   <div class="ob-actions">
-    <button class="ob-btn ob-btn-secondary" onclick="goStep(3)">Back</button>
+    <button class="ob-btn ob-btn-secondary" onclick="goStep(4)">Back</button>
     <button class="ob-btn ob-btn-primary" onclick="completeOnboarding(false, this)">Finish Setup</button>
-    <button class="ob-btn ob-btn-secondary" onclick="goStep(5);completeOnboarding(true, this)" style="font-size:13px">Skip for now</button>
+    <button class="ob-btn ob-btn-secondary" onclick="goStep(6);completeOnboarding(true, this)" style="font-size:13px">Skip for now</button>
   </div>
 </div>
 
-<!-- Step 5: Done + First Scan -->
-<div class="ob-step" data-step="5">
-  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div></div>
+<!-- Step 6: Done + First Scan -->
+<div class="ob-step" data-step="6">
+  <div class="ob-progress"><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div><div class="dot done"></div></div>
   <div style="text-align:center;margin-bottom:24px">
     <div style="font-size:36px;margin-bottom:4px">🎉</div>
     <h2 style="margin:0 0 8px">You're All Set!</h2>
@@ -1075,6 +1253,7 @@ ${CSS}
 <script>
 const INDUSTRIES = ${industriesJson};
 const ROLE_SUGGESTIONS = ${roleSuggestionsJson};
+const COMPANY_CATALOG = ${companyCatalogJson};
 const PREVIEW_MODE = ${previewMode ? 'true' : 'false'};
 
 const state = {
@@ -1082,6 +1261,7 @@ const state = {
   industries: [],
   roles: [],
   strengths: [],
+  companies: [],
   uploadedFile: null,
   uploadedFileName: '',
   skipCv: false,
@@ -1101,7 +1281,94 @@ function goStep(n) {
   document.querySelectorAll('.ob-step').forEach(el => el.classList.remove('active'));
   document.querySelector('[data-step="' + n + '"]').classList.add('active');
   state.step = n;
+  if (n === 3) renderCompanies();
   window.scrollTo(0, 0);
+}
+
+function obEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+function companyKey(c) { return (c.careers_url || '').toLowerCase(); }
+function isCompanySelected(c) { return state.companies.some(x => companyKey(x) === companyKey(c)); }
+
+// Build the company chip grid from the catalog, scoped to the chosen industries
+// (falls back to all fields if none selected). URL-added companies always show.
+function renderCompanies() {
+  const grid = document.getElementById('ob-company-grid');
+  const hint = document.getElementById('ob-company-hint');
+  if (!grid) return;
+  const inds = state.industries.filter(i => COMPANY_CATALOG[i]);
+  const sources = inds.length ? inds : Object.keys(COMPANY_CATALOG);
+  const seen = new Set();
+  const companies = [];
+  sources.forEach(id => (COMPANY_CATALOG[id] || []).forEach(c => {
+    const k = companyKey(c);
+    if (!seen.has(k)) { seen.add(k); companies.push(c); }
+  }));
+  state.companies.forEach(c => {
+    const k = companyKey(c);
+    if (!seen.has(k)) { seen.add(k); companies.push(c); }
+  });
+  if (hint) hint.textContent = inds.length
+    ? 'Suggested companies in your field' + (inds.length > 1 ? 's' : '') + '. Click to select.'
+    : 'Popular companies across fields. Click to select — or filter by picking a field on the previous step.';
+  grid.innerHTML = companies.map(c =>
+    '<div class="ob-industry-card' + (isCompanySelected(c) ? ' selected' : '') + '" data-key="' + obEsc(companyKey(c)) + '" onclick="toggleCompany(this)">' +
+    '<span>' + obEsc(c.name) + '</span><span class="ob-ic-check">✓</span></div>'
+  ).join('');
+  renderCompanies._list = companies;
+}
+
+function toggleCompany(el) {
+  const key = el.dataset.key;
+  const c = (renderCompanies._list || []).find(x => companyKey(x) === key);
+  if (!c) return;
+  if (isCompanySelected(c)) {
+    state.companies = state.companies.filter(x => companyKey(x) !== key);
+    el.classList.remove('selected');
+  } else {
+    state.companies.push(c);
+    el.classList.add('selected');
+  }
+}
+
+async function addCompanyUrl(btn) {
+  const input = document.getElementById('ob-company-url');
+  const msg = document.getElementById('ob-company-url-msg');
+  const url = (input.value || '').trim();
+  if (!url) { input.focus(); return; }
+  msg.style.color = 'var(--muted)';
+  msg.textContent = 'Verifying…';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/onboarding/verify-company', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      msg.style.color = '#b4413c';
+      msg.textContent = data.error || 'Not a recognized Greenhouse, Ashby, or Lever job board.';
+      return;
+    }
+    const c = { name: data.name, careers_url: data.careers_url };
+    if (data.api) c.api = data.api;
+    if (isCompanySelected(c)) {
+      msg.style.color = 'var(--muted)';
+      msg.textContent = data.name + ' is already in your list.';
+    } else {
+      state.companies.push(c);
+      renderCompanies();
+      msg.style.color = '#3A6B45';
+      msg.textContent = '✓ Added ' + data.name + ' — ' + data.count + ' open roles.';
+      input.value = '';
+    }
+  } catch (e) {
+    msg.style.color = '#b4413c';
+    msg.textContent = 'Could not verify: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function switchPreview(view) {
@@ -1300,21 +1567,23 @@ async function completeOnboarding(skipStory, btn) {
   const buildDoneList = () => {
     const hasCv = !skipCv && (!!document.getElementById('ob-cv')?.value?.trim() || !!state.uploadedFile);
     const list = document.getElementById('ob-done-list');
+    const companyCount = state.companies.length;
     list.innerHTML = [
       { label: 'Profile (config/profile.yml)', ok: true },
       { label: 'Job preferences (portals.yml)', ok: true },
+      { label: companyCount ? companyCount + ' companies to scan (portals.yml)' : 'Companies to scan', ok: companyCount > 0, hint: 'add companies in portals.yml or re-run setup' },
       { label: 'Resume (cv.md)', ok: hasCv },
       { label: 'Cover letter narrative', ok: hasNarrative },
     ].map(item =>
-      '<div class="ob-done-check"><span class="' + (item.ok ? 'ob-check' : 'ob-skip') + '">' + (item.ok ? '✓' : '⏭') + '</span> ' + item.label + (item.ok ? '' : ' <span class="muted">— add later in config/profile.yml</span>') + '</div>'
+      '<div class="ob-done-check"><span class="' + (item.ok ? 'ob-check' : 'ob-skip') + '">' + (item.ok ? '✓' : '⏭') + '</span> ' + item.label + (item.ok ? '' : ' <span class="muted">— ' + (item.hint || 'add later in config/profile.yml') + '</span>') + '</div>'
     ).join('');
   };
 
   if (PREVIEW_MODE) {
     buildDoneList();
-    const actionsEl = document.querySelector('[data-step="5"] .ob-done-actions');
+    const actionsEl = document.querySelector('[data-step="6"] .ob-done-actions');
     if (actionsEl) actionsEl.innerHTML = '<a href="/" class="ob-btn ob-btn-secondary" style="text-decoration:none">Back to Dashboard</a><span class="muted" style="padding:10px">Preview complete — no files were changed.</span>';
-    goStep(5);
+    goStep(6);
     return;
   }
 
@@ -1325,6 +1594,7 @@ async function completeOnboarding(skipStory, btn) {
     linkedin: document.getElementById('ob-linkedin').value.trim(),
     industries: state.industries,
     roles: state.roles,
+    companies: state.companies,
     comp: document.getElementById('ob-comp').value.trim(),
     currency: document.getElementById('ob-currency').value,
     cv: skipCv ? '' : document.getElementById('ob-cv').value,
@@ -1358,7 +1628,7 @@ async function completeOnboarding(skipStory, btn) {
   }
 
   buildDoneList();
-  goStep(5);
+  goStep(6);
 }
 </script>
 </body>
@@ -2696,7 +2966,7 @@ const server = createServer(async (req, res) => {
           payload = await readOnboardingBody(req);
         }
 
-        const { name, email, location, linkedin, industries, roles, comp, currency, cv } = payload;
+        const { name, email, location, linkedin, industries, roles, companies, comp, currency, cv } = payload;
 
         mkdirSync(join(ROOT, 'config'), { recursive: true });
         mkdirSync(join(ROOT, 'data'), { recursive: true });
@@ -2750,7 +3020,21 @@ const server = createServer(async (req, res) => {
         ['Junior', 'Intern', 'Internship'].forEach(kw => { portalsYml += '    - ' + esc(kw) + '\n'; });
         portalsYml += '  seniority_boost:\n';
         ['Senior', 'Staff', 'Principal', 'Lead', 'Head'].forEach(kw => { portalsYml += '    - ' + esc(kw) + '\n'; });
-        portalsYml += '\ntracked_companies: []\n';
+        // Companies the user picked/added in the wizard. Each was already
+        // validated to a Greenhouse/Ashby/Lever board, so scan.mjs can use them.
+        const validCompanies = (Array.isArray(companies) ? companies : [])
+          .filter(c => c && c.name && c.careers_url);
+        if (validCompanies.length) {
+          portalsYml += '\ntracked_companies:\n';
+          validCompanies.forEach(c => {
+            portalsYml += '  - name: ' + esc(c.name) + '\n';
+            portalsYml += '    careers_url: ' + esc(c.careers_url) + '\n';
+            if (c.api) portalsYml += '    api: ' + esc(c.api) + '\n';
+            portalsYml += '    enabled: true\n';
+          });
+        } else {
+          portalsYml += '\ntracked_companies: []\n';
+        }
         portalsYml += '\nsearch_queries: []\n';
         writeFileSync(join(ROOT, 'portals.yml'), portalsYml);
 
@@ -2767,6 +3051,30 @@ const server = createServer(async (req, res) => {
         }
 
         return sendJson(res, 200, { ok: true });
+      } catch (e) {
+        return sendJson(res, 500, { ok: false, error: e.message });
+      }
+    }
+
+    if (pathname === '/api/onboarding/verify-company' && req.method === 'POST') {
+      try {
+        const body = await readOnboardingBody(req);
+        const detected = detectAtsFromUrl(body.url);
+        if (!detected) {
+          return sendJson(res, 200, { ok: false, error: 'Not a recognized Greenhouse, Ashby, or Lever job board.' });
+        }
+        const count = await countAtsJobs(detected);
+        if (count == null) {
+          return sendJson(res, 200, { ok: false, error: "Couldn't reach that board — double-check the URL." });
+        }
+        if (count === 0) {
+          return sendJson(res, 200, { ok: false, error: 'That board has no open roles right now.' });
+        }
+        // Match the catalog's storage format: keep an explicit api only for
+        // Greenhouse; scan.mjs derives Ashby/Lever APIs from careers_url.
+        const out = { ok: true, name: detected.name, careers_url: detected.careers_url, count };
+        if (detected.type === 'greenhouse') out.api = detected.api;
+        return sendJson(res, 200, out);
       } catch (e) {
         return sendJson(res, 500, { ok: false, error: e.message });
       }
