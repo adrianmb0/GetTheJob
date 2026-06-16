@@ -13,7 +13,7 @@ GetTheJob scans job boards, scores every posting against your profile, generates
 
 ## Quick start
 
-> **Prerequisite:** the AI features run on [Claude Code](https://claude.com/claude-code) with a Claude Pro or Max plan (or an API key). The dashboard and scanner work without it. See [Requirements](#requirements).
+> **Prerequisite:** the AI features run on [Claude Code](https://claude.com/claude-code) with a Claude Pro or Max plan. The dashboard and scanner work without it. See [Requirements](#requirements).
 
 ```bash
 git clone https://github.com/adrianmb0/GetTheJob.git
@@ -91,7 +91,7 @@ Personal files (`cv.md`, `config/profile.yml`, `portals.yml`, everything in `dat
 
 GetTheJob runs on **[Claude Code](https://claude.com/claude-code)** — that's the engine behind triage scoring, apply packs, and evaluation reports. To use those features you'll need:
 
-- **[Claude Code](https://claude.com/claude-code)** with a **Claude Pro or Max subscription** (or an Anthropic API key)
+- **[Claude Code](https://claude.com/claude-code)** with a **Claude Pro or Max subscription**
 - **Node.js 18+**
 - **Playwright** (`npx playwright install chromium`) — for PDF resume generation
 

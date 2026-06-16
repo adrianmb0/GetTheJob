@@ -4,15 +4,27 @@
 // Works standalone or pointed at a get-the-job data directory.
 
 import { createServer } from 'node:http';
-import { readFileSync, writeFileSync, existsSync, statSync, copyFileSync, renameSync, readdirSync, createReadStream, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, statSync, copyFileSync, renameSync, readdirSync, createReadStream, mkdirSync, rmSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 
 const PORT = process.env.PORT || 3737;
-const ROOT = process.env.DATA_DIR
-  ? resolve(process.env.DATA_DIR)
-  : resolve(fileURLToPath(import.meta.url), '..');
+const SRC_DIR = resolve(fileURLToPath(import.meta.url), '..');
+const ROOT = process.env.DATA_DIR ? resolve(process.env.DATA_DIR) : SRC_DIR;
+
+// Dev-only: when EPHEMERAL=1, wipe the generated user files before each page load
+// so the onboarding wizard always starts fresh on refresh (for repeated testing
+// with mock data). Hard-guarded to a sandbox DATA_DIR — it refuses to run when
+// ROOT is the source tree, so it can NEVER touch your real data.
+const EPHEMERAL = process.env.EPHEMERAL === '1' && ROOT !== SRC_DIR;
+function wipeEphemeralData() {
+  if (!EPHEMERAL || ROOT === SRC_DIR) return;
+  for (const f of ['config/profile.yml', 'portals.yml', 'cv.md', 'cv.pdf',
+                   'data/applications.md', 'data/pipeline.md', 'data/triage-scores.tsv', 'data/scan-history.tsv']) {
+    try { rmSync(join(ROOT, f), { force: true }); } catch { /* ignore */ }
+  }
+}
 
 // ----- auto-fix GetTheJob.app permissions on startup -----
 const APP_LAUNCHER = join(ROOT, 'GetTheJob.app', 'Contents', 'MacOS', 'GetTheJob');
@@ -911,33 +923,43 @@ function renderOnboarding(previewMode = false) {
   const demoAppExists = existsSync(demoAppPath);
   const demoTriageExists = existsSync(demoTriagePath);
 
+  // Both previews mirror the real redesigned dashboard (Kanban board + lead list)
+  // so the welcome-screen peek matches what users actually get.
   let previewTrackerHtml = '<div class="empty">Demo data not found.</div>';
   if (demoAppExists) {
     const { header, rows } = parseApplicationsMd(readFileSync(demoAppPath, 'utf8'));
     const idx = {
-      num: header.findIndex(h => h.trim() === '#'),
       date: header.findIndex(h => /^date$/i.test(h)),
       company: header.findIndex(h => /^company$/i.test(h)),
       role: header.findIndex(h => /^role$/i.test(h)),
       score: header.findIndex(h => /^score$/i.test(h)),
       status: header.findIndex(h => /^status$/i.test(h)),
-      notes: header.findIndex(h => /^notes$/i.test(h)),
     };
-    const tbodyRows = rows.map(r => {
-      const status = (r[idx.status] || '').trim();
+    const COLS = [
+      { key: 'Reviewing',   dot: 'var(--neutral-ink)', statuses: ['Evaluated'] },
+      { key: 'Shortlisted', dot: '#C99A2E',            statuses: ['Shortlisted'] },
+      { key: 'Applied',     dot: 'var(--accent)',      statuses: ['Applied', 'Responded'] },
+      { key: 'Interview',   dot: '#8B5CF6',            statuses: ['Interview'] },
+      { key: 'Offer',       dot: '#3A6B45',            statuses: ['Offer'] },
+    ];
+    const CLOSED = ['Rejected', 'Discarded'];
+    const miniCard = (r) => {
       const scoreRaw = r[idx.score] || '';
-      const rowClass = ['Applied','Rejected','Discarded'].includes(status) ? `row-${status.toLowerCase()}` : '';
-      return `<tr class="${rowClass}">
-        <td>${escapeHtml(r[idx.num] || '')}</td>
-        <td>${escapeHtml(r[idx.date] || '')}</td>
-        <td><strong>${escapeHtml(r[idx.company] || '')}</strong></td>
-        <td>${escapeHtml(r[idx.role] || '')}</td>
-        <td><span class="score-pill ${scoreClass(scoreRaw)}">${escapeHtml(scoreRaw)}</span></td>
-        <td>${escapeHtml(status)}</td>
-        <td class="muted" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r[idx.notes] || '')}</td>
-      </tr>`;
+      return `<div class="kc">
+        <div class="kc-top"><div><div class="co">${escapeHtml(r[idx.company] || '')}</div><div class="ro">${escapeHtml(r[idx.role] || '')}</div></div></div>
+        <div class="foot"><span class="score-mini ${scoreClass(scoreRaw)}">${escapeHtml(scoreRaw || '—')}</span><span class="kmeta">${escapeHtml(r[idx.date] || '')}</span></div>
+      </div>`;
+    };
+    const columnsHtml = COLS.map(c => {
+      const cards = rows.filter(r => c.statuses.includes((r[idx.status] || '').trim()));
+      const inner = cards.length ? cards.map(miniCard).join('') : `<div class="kc-empty">${c.key === 'Offer' ? 'Your next milestone' : 'Nothing here yet'}</div>`;
+      return `<div class="col"><div class="col-h"><span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div>${inner}</div>`;
     }).join('');
-    previewTrackerHtml = `<table><thead><tr><th>#</th><th>Date</th><th>Company</th><th>Role</th><th>Score</th><th>Status</th><th>Notes</th></tr></thead><tbody>${tbodyRows}</tbody></table>`;
+    const closedCards = rows.filter(r => CLOSED.includes((r[idx.status] || '').trim()));
+    const closedHtml = closedCards.length
+      ? `<details class="closed-lane"><summary>Closed — ${closedCards.length} (rejected / discarded)</summary><div class="closed-grid">${closedCards.map(miniCard).join('')}</div></details>`
+      : '';
+    previewTrackerHtml = `<div style="padding:12px"><div class="board">${columnsHtml}</div>${closedHtml}</div>`;
   }
 
   let previewTriageHtml = '<div class="empty">Demo data not found.</div>';
@@ -951,19 +973,23 @@ function renderOnboarding(previewMode = false) {
       location: header.findIndex(h => /^location$/i.test(h)),
       note: header.findIndex(h => /^one[_ ]line[_ ]note$/i.test(h)),
     };
-    const sorted = rows.slice().sort((a, b) => parseFloat(b[idx.score]) - parseFloat(a[idx.score]));
-    const tbodyRows = sorted.map(r => {
+    const sorted = rows.slice().sort((a, b) => parseFloat(b[idx.score]) - parseFloat(a[idx.score])).slice(0, 6);
+    const leads = sorted.map(r => {
       const v = (r[idx.verdict] || '').trim();
-      return `<tr>
-        <td><span class="score-pill ${scoreClass(r[idx.score])}">${escapeHtml(r[idx.score])}</span></td>
-        <td><span class="verdict-pill ${verdictClass(v)}">${escapeHtml(v)}</span></td>
-        <td><strong>${escapeHtml(r[idx.company] || '')}</strong></td>
-        <td>${escapeHtml(r[idx.role] || '')}</td>
-        <td>${escapeHtml(r[idx.location] || '')}</td>
-        <td class="muted">${escapeHtml(r[idx.note] || '')}</td>
-      </tr>`;
+      const scoreRaw = r[idx.score] || '';
+      const meta = [r[idx.location], r[idx.note]].filter(Boolean).map(x => `<span>${escapeHtml(x)}</span>`).join('');
+      return `<div class="lead">
+        <div class="score-chip ${scoreClass(scoreRaw)}">${escapeHtml(scoreRaw || '—')}</div>
+        <div class="lead-main">
+          <div class="lead-co">${escapeHtml(r[idx.company] || '')}</div>
+          <div class="lead-role">${escapeHtml(r[idx.role] || '')}</div>
+          <div class="lead-meta">${meta}</div>
+        </div>
+        ${v ? `<span class="verdict-pill ${verdictClass(v)}">${escapeHtml(v)}</span>` : ''}
+        <div class="lead-act"><button class="btn-shortlist">→ Pipeline</button></div>
+      </div>`;
     }).join('');
-    previewTriageHtml = `<table><thead><tr><th>Score</th><th>Verdict</th><th>Company</th><th>Role</th><th>Location</th><th>Note</th></tr></thead><tbody>${tbodyRows}</tbody></table>`;
+    previewTriageHtml = `<div class="lead-list">${leads}</div>`;
   }
 
   const industriesJson = JSON.stringify(INDUSTRIES);
@@ -1036,9 +1062,10 @@ ${CSS}
 .ob-preview-tabs { display: flex; gap: 0; margin-bottom: 0; }
 .ob-preview-tab { padding: 8px 20px; border: 1px solid var(--border); border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 13px; font-weight: 500; background: var(--row-alt); color: var(--muted); }
 .ob-preview-tab.active { background: #fff; color: var(--fg); border-bottom-color: #fff; position: relative; z-index: 1; }
-.ob-preview-panel { border: 1px solid var(--border); border-radius: 0 6px 6px 6px; background: #fff; padding: 0; max-height: 260px; overflow: auto; position: relative; top: -1px; }
-.ob-preview-panel table { font-size: 12.5px; border-collapse: separate; border-spacing: 0; }
-.ob-preview-panel thead th { position: sticky; top: 0; background: #fff; z-index: 2; padding: 8px 6px; border-bottom: 2px solid var(--border); }
+.ob-preview-panel { border: 1px solid var(--border); border-radius: 0 6px 6px 6px; background: var(--canvas); padding: 0; max-height: 340px; overflow: auto; position: relative; top: -1px; }
+.ob-preview-panel .board { grid-template-columns: repeat(5, minmax(150px, 1fr)); }
+.ob-preview-panel .col { min-height: 120px; }
+.ob-preview-panel .lead-list { background: var(--surface); }
 .ob-preview-panel .disabled-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; }
 .ob-preview-wrap { position: relative; }
 .ob-upload-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 40px 20px; text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; margin-bottom: 16px; }
@@ -1076,7 +1103,7 @@ ${CSS}
     <button class="ob-btn ob-btn-primary ob-btn-lg" onclick="goStep(1)">Get Started →</button>
     <a class="ob-manual" href="https://github.com/adrianmb0/GetTheJob#first-time-setup-manual" target="_blank">I prefer to set up manually</a>
   </div>
-  <div class="ob-prereq muted" style="text-align:center;font-size:12.5px;margin:14px auto 0;max-width:560px;line-height:1.5">⚙️ Runs on <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a> with a Claude Pro or Max plan (or API key). Scanning &amp; tracking are free — AI scoring and apply packs use your plan.</div>
+  <div class="ob-prereq muted" style="text-align:center;font-size:12.5px;margin:14px auto 0;max-width:560px;line-height:1.5">⚙️ Runs on <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a> with a Claude Pro or Max plan. Scanning &amp; tracking are free — AI scoring and apply packs use your plan.</div>
   <div class="ob-preview-caption">A peek at your dashboard</div>
   <div class="ob-preview-tabs" style="margin:0">
     <div class="ob-preview-tab active" onclick="switchPreview('tracker')">Pipeline</div>
@@ -2924,6 +2951,12 @@ const server = createServer(async (req, res) => {
     const url = req.url || '/';
     const pathname = url.split('?')[0];
     const query = parseQuery(url);
+
+    // Dev ephemeral mode: reset the sandbox on each page load so onboarding
+    // always restarts fresh on refresh. No-op unless EPHEMERAL=1 + sandbox ROOT.
+    if (EPHEMERAL && (pathname === '/' || pathname === '/index.html' || pathname === '/triage' || pathname === '/onboarding')) {
+      wipeEphemeralData();
+    }
 
     // First-run: redirect to onboarding if profile.yml doesn't exist
     const profileExists = existsSync(join(ROOT, 'config', 'profile.yml'));
