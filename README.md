@@ -13,6 +13,8 @@ GetTheJob scans job boards, scores every posting against your profile, generates
 
 ## Quick start
 
+> **Prerequisite:** the AI features run on [Claude Code](https://claude.com/claude-code) with a Claude Pro or Max plan (or an API key). The dashboard and scanner work without it. See [Requirements](#requirements).
+
 ```bash
 git clone https://github.com/adrianmb0/GetTheJob.git
 cd GetTheJob
@@ -87,8 +89,15 @@ Personal files (`cv.md`, `config/profile.yml`, `portals.yml`, everything in `dat
 
 ## Requirements
 
-- Node.js 18+
-- Playwright (`npx playwright install chromium` for PDF generation)
+GetTheJob runs on **[Claude Code](https://claude.com/claude-code)** — that's the engine behind triage scoring, apply packs, and evaluation reports. To use those features you'll need:
+
+- **[Claude Code](https://claude.com/claude-code)** with a **Claude Pro or Max subscription** (or an Anthropic API key)
+- **Node.js 18+**
+- **Playwright** (`npx playwright install chromium`) — for PDF resume generation
+
+**What works with no AI cost:** the dashboard (`npm start`) and the job scanner (`npm run scan`) run on plain Node — you can browse, scan, filter, and track entirely for free. AI is only spent when you ask for a triage score, an apply pack, or a full evaluation, so you control the spend.
+
+> **Coming later:** a free tier that runs on other agent runtimes (Gemini CLI's free tier, OpenCode with your own model). Today the smoothest experience is Claude Code + a Pro/Max plan, and that's what this release targets.
 
 ## License
 

@@ -368,12 +368,16 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 @media (max-width: 680px) { .board { grid-template-columns: 1fr; } }
 .col { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 11px; min-height: 180px; }
 .col.drop-target { outline: 2px dashed var(--accent); outline-offset: -4px; background: var(--accent-weak); }
+.closed-lane.drop-target { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 10px; background: var(--accent-weak); }
 .col-h { display: flex; align-items: center; justify-content: space-between; padding: 5px 6px 12px; font-size: 12.5px; font-weight: 720; letter-spacing: -.01em; }
 .col-h .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; vertical-align: middle; }
 .col-h .c { font-weight: 730; color: var(--muted); font-size: 11px; background: var(--neutral-bg); border-radius: 999px; padding: 2px 8px; }
 .kc { background: var(--canvas); border: 1px solid var(--border); border-radius: 11px; padding: 11px 12px; margin-bottom: 9px; }
 .kc:hover { border-color: var(--accent); }
 .kc.dragging { opacity: .45; }
+.kc[draggable] { cursor: grab; }
+.kc[draggable]:active { cursor: grabbing; }
+.kc[data-url] { cursor: pointer; }
 .kc .kc-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .kc .co { font-weight: 680; font-size: 14px; letter-spacing: -.01em; }
 .kc .ro { color: var(--muted); font-size: 12px; margin-top: 2px; }
@@ -624,18 +628,6 @@ function toggleMenu(e, btn) {
   const willOpen = !pop.classList.contains('open');
   closeMenus(pop);
   pop.classList.toggle('open', willOpen);
-}
-function moveCard(num, status, btn) {
-  btn.disabled = true;
-  fetch('/api/set-status', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ num, status })
-  }).then(r => r.json()).then(j => {
-    if (!j.ok) { btn.disabled = false; showToast('Move failed: ' + (j.error || 'unknown'), true); return; }
-    showToast('Moved to ' + status);
-    setTimeout(() => location.reload(), 400);
-  }).catch(err => { btn.disabled = false; showToast(err.message, true); });
 }
 function relTime(s) {
   const t = Date.parse(s);
@@ -915,6 +907,7 @@ ${CSS}
     <button class="ob-btn ob-btn-primary ob-btn-lg" onclick="goStep(1)">Get Started →</button>
     <a class="ob-manual" href="https://github.com/adrianmb0/GetTheJob#first-time-setup-manual" target="_blank">I prefer to set up manually</a>
   </div>
+  <div class="ob-prereq muted" style="text-align:center;font-size:12.5px;margin:14px auto 0;max-width:560px;line-height:1.5">⚙️ Runs on <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a> with a Claude Pro or Max plan (or API key). Scanning &amp; tracking are free — AI scoring and apply packs use your plan.</div>
   <div class="ob-preview-caption">A peek at your dashboard</div>
   <div class="ob-preview-tabs" style="margin:0">
     <div class="ob-preview-tab active" onclick="switchPreview('tracker')">Pipeline</div>
@@ -1901,7 +1894,6 @@ function renderPipeline(query) {
 
   const reportLinkRe = /\[([^\]]+)\]\(([^)]+)\)/;
   const scanHistory = loadScanHistory();
-  const MOVE_TARGETS = ['Evaluated', 'Shortlisted', 'Applied', 'Responded', 'Interview', 'Offer', 'Rejected', 'Discarded'];
   // "New" = rows added to the pipeline on the most recent date present
   const addedDates = rows.map(r => (r[idx.date] || '').trim()).filter(Boolean).sort();
   const latestAdded = addedDates.length ? addedDates[addedDates.length - 1] : '';
@@ -1948,8 +1940,9 @@ function renderPipeline(query) {
     const reportItem = reportFile ? `<a href="/report?file=${encodeURIComponent(reportFile)}" data-report-file="${escapeHtml(reportFile)}" data-report-title="${escapeHtml(r[idx.company] + ' — ' + r[idx.role])}">📄&nbsp; View report</a>` : '';
     const openItem = url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">↗&nbsp; Open posting</a>` : '';
     const packItem = packPath ? `<a href="/apply?row=${encodeURIComponent(r[idx.num] || '')}">📎&nbsp; Apply pack</a>` : '';
-    const moveItems = MOVE_TARGETS.filter(s => s !== status).map(s => `<button onclick="moveCard('${num}','${s}',this)">${s}</button>`).join('');
     const delItem = `<button class="danger" onclick="deleteRow('${num}', this)">🗑&nbsp; Delete</button>`;
+    const topItems = [applyItem, reportItem, openItem, packItem].filter(Boolean).join('');
+    const menuInner = topItems ? `${topItems}<div class="sep"></div>${delItem}` : delItem;
     const showApply = url && (status === 'Evaluated' || status === 'Shortlisted');
     const applyBtn = showApply ? `<button class="btn-apply" onclick="applyJob('${escapeHtml(url)}', this)">Apply</button>` : '';
 
@@ -1958,10 +1951,10 @@ function renderPipeline(query) {
       ? `<span class="kmeta" data-rel="${escapeHtml(addedRaw)}" title="Added to pipeline ${escapeHtml(addedRaw)}">${escapeHtml(addedRaw)}</span>`
       : (datePosted ? `<span class="kmeta" data-rel="${escapeHtml(datePosted)}">${escapeHtml(datePosted)}</span>` : '');
 
-    return `<div class="kc${closed ? ' closed' : ''}${isNew ? ' is-new' : ''}" data-num="${num}" data-status="${escapeHtml(status)}" data-new="${isNew ? '1' : ''}" data-search="${searchStr}">
+    return `<div class="kc${closed ? ' closed' : ''}${isNew ? ' is-new' : ''}" draggable="true" data-num="${num}" data-status="${escapeHtml(status)}"${url ? ` data-url="${escapeHtml(url)}"` : ''} data-new="${isNew ? '1' : ''}" data-search="${searchStr}">
       <div class="kc-top">
         <div><div class="co">${company}${isNew ? ' <span class="new-badge">NEW</span>' : ''}</div><div class="ro">${role}</div></div>
-        <div class="menu"><button class="icon-btn" title="Actions" style="width:28px;height:28px;font-size:13px" onclick="toggleMenu(event, this)">⋯</button><div class="menu-pop">${applyItem}${reportItem}${openItem}${packItem}<div class="sep"></div><div class="label">Move to</div>${moveItems}<div class="sep"></div>${delItem}</div></div>
+        <div class="menu"><button class="icon-btn" title="Actions" style="width:28px;height:28px;font-size:13px" onclick="toggleMenu(event, this)">⋯</button><div class="menu-pop">${menuInner}</div></div>
       </div>
       ${note ? `<div class="kc-note" style="font-size:11.5px;color:var(--muted);margin-top:7px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${escapeHtml(note)}</div>` : ''}
       <div class="foot"><span class="score-mini ${scoreClass(scoreRaw)}">${escapeHtml(scoreRaw || '—')}</span>${metaBit}${applyBtn ? `<span style="margin-left:auto">${applyBtn}</span>` : ''}</div>
@@ -1973,19 +1966,23 @@ function renderPipeline(query) {
     const inner = cards.length
       ? cards.map(card).join('')
       : `<div class="kc-empty">${c.key === 'Offer' ? 'Your next milestone' : 'Nothing here yet'}</div>`;
-    return `<div class="col"><div class="col-h"><span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div>${inner}</div>`;
+    return `<div class="col" data-status="${c.statuses[0]}" data-statuses="${c.statuses.join(',')}"><div class="col-h"><span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div>${inner}</div>`;
   }).join('');
 
   const closedCards = rows.filter(r => CLOSED.includes((r[idx.status] || '').trim()));
-  const closedHtml = closedCards.length
-    ? `<details class="closed-lane"><summary>Closed — ${closedCards.length} (rejected / discarded)</summary><div class="closed-grid">${closedCards.map(card).join('')}</div></details>`
-    : '';
+  const closedInner = closedCards.length
+    ? `<div class="closed-grid">${closedCards.map(card).join('')}</div>`
+    : `<div class="kc-empty" style="margin-top:8px">Drag a card here to mark it closed</div>`;
+  const closedSummary = closedCards.length
+    ? `Closed — ${closedCards.length} (rejected / discarded) · drag a card here to close it`
+    : 'Closed · drag a card here to close it';
+  const closedHtml = `<details class="closed-lane" data-status="Discarded" data-statuses="${CLOSED.join(',')}"${closedCards.length ? '' : ' open'}><summary>${closedSummary}</summary>${closedInner}</details>`;
 
   const body = `
 <div class="toolbar">
   <div>
     <h1>Pipeline</h1>
-    <div class="sub">Everything you're actively pursuing, by stage. Use a card's ⋯ menu to move it forward as things progress.</div>
+    <div class="sub">Everything you're actively pursuing, by stage. Drag a card between columns to move it forward — or click it to open the posting.</div>
   </div>
   <div class="tools">
     ${latestAdded ? `<button class="chip-toggle" id="new-toggle" title="Added to your pipeline on the latest date (${escapeHtml(latestAdded)})">✨ New<span class="chip-count">${newCount}</span></button>` : ''}
@@ -2049,6 +2046,51 @@ function submitAddPosting(e) {
   if (newToggle) newToggle.addEventListener('click', () => { newOnly = !newOnly; newToggle.classList.toggle('active', newOnly); apply(); });
   if (newToggle && new URLSearchParams(location.search).get('new') === '1') { newOnly = true; newToggle.classList.add('active'); apply(); }
 })();
+// ----- drag-and-drop between columns + click-to-open-posting -----
+(function(){
+  let dragNum = null, dragged = null, didDrag = false;
+  const dropZones = document.querySelectorAll('[data-statuses]');
+  document.querySelectorAll('.kc[draggable]').forEach(c => {
+    c.addEventListener('dragstart', e => {
+      dragNum = c.dataset.num; dragged = c; didDrag = true;
+      c.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', dragNum); } catch (_) {}
+      const lane = document.querySelector('.closed-lane'); if (lane) lane.open = true;
+    });
+    c.addEventListener('dragend', () => {
+      c.classList.remove('dragging');
+      dropZones.forEach(t => t.classList.remove('drop-target'));
+      dragNum = null; dragged = null;
+      setTimeout(() => { didDrag = false; }, 30);
+    });
+    c.addEventListener('click', e => {
+      if (didDrag) return;
+      if (e.target.closest('.menu') || e.target.closest('a') || e.target.closest('button')) return;
+      if (c.dataset.url) window.open(c.dataset.url, '_blank', 'noopener');
+    });
+  });
+  dropZones.forEach(t => {
+    t.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; t.classList.add('drop-target'); });
+    t.addEventListener('dragleave', e => { if (!t.contains(e.relatedTarget)) t.classList.remove('drop-target'); });
+    t.addEventListener('drop', e => {
+      e.preventDefault();
+      t.classList.remove('drop-target');
+      if (!dragNum || !dragged) return;
+      const status = t.dataset.status;
+      if (!status) return;
+      if ((t.dataset.statuses || '').split(',').includes(dragged.dataset.status)) return; // already in this lane
+      fetch('/api/set-status', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ num: dragNum, status })
+      }).then(r => r.json()).then(j => {
+        if (!j.ok) { showToast('Move failed: ' + (j.error || 'unknown'), true); return; }
+        showToast('Moved to ' + status);
+        setTimeout(() => location.reload(), 350);
+      }).catch(err => showToast(err.message, true));
+    });
+  });
+})();
 </script>
 `;
   return shell('Pipeline', body, { view: 'pipeline', ...getCounts(), wide: true });
@@ -2104,6 +2146,29 @@ function extractComp(note) {
     return { display: 'Not disclosed', sortKey: 0 };
   }
   return { display: '', sortKey: 0 };
+}
+
+// Collapse the many spellings of a remote location into one canonical bucket so
+// the Location filter shows a single "Remote (US)" option instead of "Remote US",
+// "Remote, US", "Remote - US", "US Remote", "United States (remote)", etc. Cards
+// still display the raw string; only the filter grouping is normalized.
+// Non-remote or unrecognized values pass through unchanged (one option each).
+function locationGroup(raw) {
+  const s = (raw || '').trim();
+  if (!s) return '';                       // empty → "Unknown"
+  const low = s.toLowerCase();
+  if (!/remote/.test(low)) return s;       // on-site/hybrid → keep as-is
+  // Region detected alongside "remote". US is checked first so combos that list
+  // US cities + "Remote US" (and the "Remote East/West" coast shorthand) group as US.
+  if (/\b(u\.?s\.?a?|united states)\b/.test(low) || /remote\s*(east|west)\b/.test(low)) return 'Remote (US)';
+  if (/canada|toronto|vancouver|montreal/.test(low)) return 'Remote (Canada)';
+  if (/\b(uk|united kingdom|england|scotland|wales|london)\b/.test(low)) return 'Remote (UK)';
+  if (/ireland/.test(low)) return 'Remote (Ireland)';
+  if (/sweden/.test(low)) return 'Remote (Sweden)';
+  if (/spain/.test(low)) return 'Remote (Spain)';
+  if (/germany/.test(low)) return 'Remote (Germany)';
+  if (/\b(eu|europe)\b/.test(low)) return 'Remote (EU)';
+  return 'Remote';                         // remote, region unspecified
 }
 
 // Build a url→first_seen map from scan-history.tsv. Used as a proxy for
@@ -2245,6 +2310,7 @@ function renderInbox(query) {
     const role = r[idx.role] || '';
     const datePosted = scanHistory.get(url) || '';
     const location = idx.location >= 0 ? (r[idx.location] || '') : '';
+    const locGroup = locationGroup(location);
     const note = r[idx.note] || '';
     const comp = extractComp(note);
     const firstSeen = r[idx.added] || '';
@@ -2267,7 +2333,7 @@ function renderInbox(query) {
       metaDate ? `<span data-rel="${escapeHtml(metaDate)}" title="Added to your inbox ${escapeHtml(metaDate)}">${escapeHtml(metaDate)}</span>` : '',
     ].filter(Boolean).join('');
 
-    return `<div class="lead${isNew ? ' is-new' : ''}" data-verdict="${escapeHtml(verdict)}" data-score-bucket="${scoreBucket}" data-company="${escapeHtml(company)}" data-location="${escapeHtml(location)}" data-score="${escapeHtml(scoreNum)}" data-pay="${comp.sortKey}" data-posted="${escapeHtml(datePosted)}" data-added="${escapeHtml(firstSeen)}" data-new="${isNew ? '1' : ''}" data-search="${searchStr}">
+    return `<div class="lead${isNew ? ' is-new' : ''}" data-verdict="${escapeHtml(verdict)}" data-score-bucket="${scoreBucket}" data-company="${escapeHtml(company)}" data-location="${escapeHtml(locGroup)}" data-score="${escapeHtml(scoreNum)}" data-pay="${comp.sortKey}" data-posted="${escapeHtml(datePosted)}" data-added="${escapeHtml(firstSeen)}" data-new="${isNew ? '1' : ''}" data-search="${searchStr}">
       <div class="score-chip ${scoreClass(scoreRaw)}">${escapeHtml(scoreRaw || '—')}</div>
       <div class="lead-main">
         <div class="lead-co">${escapeHtml(company)}${isNew ? ' <span class="new-badge">NEW</span>' : ''}</div>
@@ -2290,7 +2356,7 @@ function renderInbox(query) {
   sorted.forEach(r => {
     const v = r[idx.verdict] || '';
     if (v) verdictSet.add(v);
-    const loc = idx.location >= 0 ? (r[idx.location] || '') : '';
+    const loc = locationGroup(idx.location >= 0 ? (r[idx.location] || '') : '');
     locationSet.add(loc); // include empty string for "Unknown"
     const co = r[idx.company] || '';
     if (co) companySet.add(co);
