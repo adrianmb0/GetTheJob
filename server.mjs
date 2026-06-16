@@ -1005,14 +1005,18 @@ function renderOnboarding(previewMode = false) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 ${CSS}
-.onboarding { max-width: 1100px; margin: 0 auto; padding: 20px 32px 40px; }
-.ob-step[data-step="1"], .ob-step[data-step="2"], .ob-step[data-step="3"], .ob-step[data-step="4"], .ob-step[data-step="5"], .ob-step[data-step="6"] { max-width: 800px; margin: 0 auto; }
+.onboarding { max-width: 1100px; margin: 0 auto; padding: 40px 32px; min-height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; }
+.ob-step[data-step="1"], .ob-step[data-step="2"], .ob-step[data-step="3"], .ob-step[data-step="4"], .ob-step[data-step="5"], .ob-step[data-step="6"] { max-width: 760px; }
 .ob-hero { text-align: center; margin-bottom: 12px; }
 .ob-hero h1 { font-size: 26px; margin: 0 0 4px; }
 .ob-hero .ob-icon { font-size: 32px; margin-bottom: 4px; }
 .ob-hero p { color: var(--muted); font-size: 14px; margin: 0; }
-.ob-step { display: none; }
-.ob-step.active { display: block; }
+.ob-step { display: none; width: 100%; }
+/* Vertically center the active step; auto margins collapse (no clipping) when a
+   step is taller than the viewport, so tall steps just scroll from the top. */
+.ob-step.active { display: block; margin-top: auto; margin-bottom: auto; animation: obStepIn .28s ease both; }
+@keyframes obStepIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ob-step.active { animation: none; } }
 .ob-progress { display: flex; justify-content: center; gap: 8px; margin: 0 0 32px; }
 .ob-progress .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); transition: background 0.2s; }
 .ob-progress .dot.done { background: var(--high); }
@@ -1039,7 +1043,9 @@ ${CSS}
 .ob-field .ob-hint { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
 .ob-field input, .ob-field textarea, .ob-field select { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; font-family: inherit; background: #fff; }
 .ob-field input:focus, .ob-field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
-.ob-field textarea { min-height: 200px; font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace; font-size: 13px; }
+.ob-field textarea { min-height: 200px; font-family: inherit; font-size: 14px; line-height: 1.5; }
+/* The CV field holds markdown, so monospace is intentional there only. */
+#ob-cv { font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace; font-size: 13px; }
 .ob-row { display: flex; gap: 16px; }
 .ob-row > .ob-field { flex: 1; }
 .ob-industry-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 8px; }
@@ -1118,7 +1124,7 @@ ${CSS}
 
 <!-- Step 1: Profile -->
 <div class="ob-step" data-step="1">
-  <div class="ob-progress"><div class="dot current"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+  <div class="ob-progress"><div class="dot current"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
   <h2 style="text-align:center;margin-top:0">About You</h2>
   <p class="muted" style="text-align:center">Basic info for your profile. You can always edit this later.</p>
   <div class="ob-row">
@@ -1137,7 +1143,7 @@ ${CSS}
 
 <!-- Step 2: Industry, Roles, Comp -->
 <div class="ob-step" data-step="2">
-  <div class="ob-progress"><div class="dot done"></div><div class="dot current"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+  <div class="ob-progress"><div class="dot done"></div><div class="dot current"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
   <h2 style="text-align:center;margin-top:0">What Are You Looking For?</h2>
   <p class="muted" style="text-align:center">Select your field and target roles so we can find the right jobs for you.</p>
 
