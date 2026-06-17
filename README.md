@@ -68,6 +68,20 @@ The wizard writes `config/profile.yml`, `portals.yml`, and `cv.md` for you. When
 
 Power users can still set up manually via config files (see [First-time setup](#first-time-setup-manual)).
 
+## Scoring & applying (the Claude Code step)
+
+The dashboard finds, filters, and tracks jobs for free on plain Node. The **AI work — scoring postings and writing tailored resumes and cover letters — runs in [Claude Code](https://claude.com/claude-code)** (Pro or Max plan). After setup, the loop is:
+
+1. **Open the project in Claude Code.** In a terminal: `cd GetTheJob && claude` — or open the `GetTheJob` folder with the Claude Code VS Code / JetBrains extension.
+2. **Find jobs:** `/get-the-job scan` (or click *Run scan* in the dashboard, or `npm run scan`). New postings land in `data/pipeline.md`.
+3. **Score them:** `/get-the-job triage` — reads each new posting, scores it 1–5 against your profile, and writes the results to your **Inbox** (`data/triage-scores.tsv`).
+4. **Review:** refresh the dashboard Inbox at [localhost:3737](http://localhost:3737) to see scored leads with verdict chips (Apply High / Apply / Skip). Filter and sort to find the best fits.
+5. **Shortlist → apply:** send a lead to your Pipeline, then `/get-the-job apply` generates a tailored resume, cover letter, and application answers for that role.
+
+> Tip: `/get-the-job morning-batch` runs steps 2–3 (scan + triage) in a single command.
+
+> **Uploaded your resume as a PDF?** The AI reads `cv.md`, not the PDF. In your first Claude Code session, ask it to *“convert cv.pdf into cv.md”* before scoring.
+
 ## First-time setup (manual)
 
 1. Copy the example configs:

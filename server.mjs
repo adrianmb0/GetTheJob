@@ -1601,7 +1601,7 @@ async function runFirstScan(btn) {
         if (!sd.running) {
           clearInterval(poll);
           bar.style.width = '100%';
-          document.getElementById('ob-scan-status').innerHTML = 'Done! <a href="/triage" style="color:var(--accent);font-weight:600">View your results →</a>';
+          document.getElementById('ob-scan-status').innerHTML = 'Scan complete — new postings saved to your queue.<br><span style="font-size:12.5px;color:var(--muted)">Next, score them against your profile: open this project in <b>Claude Code</b> and run <code style="background:var(--border);padding:1px 5px;border-radius:4px">/get-the-job triage</code>. Scored jobs appear in your <a href="/triage" style="color:var(--accent);font-weight:600">Inbox</a>.</span>';
           btn.style.display = 'none';
         }
       } catch (e) { /* keep polling */ }
@@ -1623,17 +1623,21 @@ async function completeOnboarding(skipStory, btn) {
   const hasNarrative = !skipStory && (headline || exitStory || state.strengths.length > 0 || proofName);
 
   const buildDoneList = () => {
-    const hasCv = !skipCv && (!!document.getElementById('ob-cv')?.value?.trim() || !!state.uploadedFile);
+    const hasPasted = !skipCv && !!document.getElementById('ob-cv')?.value?.trim();
+    const pdfOnly = !skipCv && !hasPasted && !!state.uploadedFile;
+    const hasCv = hasPasted || pdfOnly;
     const list = document.getElementById('ob-done-list');
     const companyCount = state.companies.length;
     list.innerHTML = [
       { label: 'Profile (config/profile.yml)', ok: true },
       { label: 'Job preferences (portals.yml)', ok: true },
       { label: companyCount ? companyCount + ' companies to scan (portals.yml)' : 'Companies to scan', ok: companyCount > 0, hint: 'add companies in portals.yml or re-run setup' },
-      { label: 'Resume (cv.md)', ok: hasCv },
+      pdfOnly
+        ? { label: 'Resume (cv.pdf)', ok: true, note: 'Claude Code converts it to cv.md on first use' }
+        : { label: 'Resume (cv.md)', ok: hasCv },
       { label: 'Cover letter narrative', ok: hasNarrative },
     ].map(item =>
-      '<div class="ob-done-check"><span class="' + (item.ok ? 'ob-check' : 'ob-skip') + '">' + (item.ok ? '✓' : '⏭') + '</span> ' + item.label + (item.ok ? '' : ' <span class="muted">— ' + (item.hint || 'add later in config/profile.yml') + '</span>') + '</div>'
+      '<div class="ob-done-check"><span class="' + (item.ok ? 'ob-check' : 'ob-skip') + '">' + (item.ok ? '✓' : '⏭') + '</span> ' + item.label + (item.ok ? (item.note ? ' <span class="muted">— ' + item.note + '</span>' : '') : ' <span class="muted">— ' + (item.hint || 'add later in config/profile.yml') + '</span>') + '</div>'
     ).join('');
   };
 
@@ -2577,7 +2581,7 @@ function getCounts() {
 function renderInbox(query) {
   const path = join(ROOT, 'data', 'triage-scores.tsv');
   if (!existsSync(path)) {
-    return shell('Inbox', '<h1>Inbox</h1><div class="empty">No leads yet — run a scan to populate data/triage-scores.tsv.</div>', { view: 'inbox', ...getCounts() });
+    return shell('Inbox', '<h1>Inbox</h1><div class="empty" style="line-height:1.6">No scored leads yet.<br>1. Find jobs — run a scan (<code>npm run scan</code> or the scan button).<br>2. Score them — open this project in <b>Claude Code</b> and run <code>/get-the-job triage</code>.<br>Scored postings show up here.</div>', { view: 'inbox', ...getCounts() });
   }
   const text = readFileSync(path, 'utf8');
   const { header, rows: allRows } = parseTsv(text);
@@ -3106,11 +3110,19 @@ const server = createServer(async (req, res) => {
         portalsYml += '\nsearch_queries: []\n';
         writeFileSync(join(ROOT, 'portals.yml'), portalsYml);
 
-        if (cv) {
-          writeFileSync(join(ROOT, 'cv.md'), cv);
-        }
         if (pdfBuf) {
           writeFileSync(join(ROOT, 'cv.pdf'), pdfBuf);
+        }
+        if (cv) {
+          writeFileSync(join(ROOT, 'cv.md'), cv);
+        } else if (pdfBuf) {
+          // PDF uploaded without pasted markdown. The AI reads cv.md, so leave a
+          // stub that tells Claude Code to convert the PDF on first use — keeps
+          // the data contract intact and makes the next step explicit.
+          writeFileSync(join(ROOT, 'cv.md'),
+            '<!-- Your resume was uploaded as cv.pdf but not yet converted to Markdown.\n' +
+            '     Before scoring jobs, open this project in Claude Code and ask it:\n' +
+            '     "convert cv.pdf into cv.md". The AI reads cv.md (not the PDF). -->\n');
         }
 
         if (!existsSync(join(ROOT, 'data', 'applications.md'))) {
