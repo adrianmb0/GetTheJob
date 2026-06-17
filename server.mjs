@@ -1005,7 +1005,7 @@ function renderOnboarding(previewMode = false) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 ${CSS}
-.onboarding { max-width: 1100px; margin: 0 auto; padding: 40px 32px; min-height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; }
+.onboarding { max-width: 1100px; margin: 0 auto; padding: 72px 32px 40px; min-height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; }
 .ob-step[data-step="1"], .ob-step[data-step="2"], .ob-step[data-step="3"], .ob-step[data-step="4"], .ob-step[data-step="5"], .ob-step[data-step="6"] { max-width: 760px; }
 .ob-hero { text-align: center; margin-bottom: 12px; }
 .ob-hero h1 { font-size: 26px; margin: 0 0 4px; }
@@ -1015,9 +1015,13 @@ ${CSS}
 /* Vertically center the active step; auto margins collapse (no clipping) when a
    step is taller than the viewport, so tall steps just scroll from the top. */
 .ob-step.active { display: block; margin-top: auto; margin-bottom: auto; animation: obStepIn .28s ease both; }
-@keyframes obStepIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+/* Opacity-only (no transform): a transform here would make the fixed progress
+   bar resolve against this step instead of the viewport. */
+@keyframes obStepIn { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .ob-step.active { animation: none; } }
-.ob-progress { display: flex; justify-content: center; gap: 8px; margin: 0 0 32px; }
+/* Progress bar is pinned to the top of the viewport so it stays put while the
+   step content centers below it (only the active step's bar is ever rendered). */
+.ob-progress { position: fixed; top: 26px; left: 0; right: 0; display: flex; justify-content: center; gap: 8px; margin: 0; z-index: 20; }
 .ob-progress .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); transition: background 0.2s; }
 .ob-progress .dot.done { background: var(--high); }
 .ob-progress .dot.current { background: var(--accent); }
@@ -1287,11 +1291,18 @@ ${CSS}
     <p id="ob-scan-status" style="font-size:14px">Scanning job boards...</p>
     <div style="width:200px;height:4px;background:var(--border);border-radius:2px;margin:8px auto"><div id="ob-scan-bar" style="height:100%;background:var(--accent);border-radius:2px;width:0%;transition:width 0.5s"></div></div>
   </div>
-  <div style="margin-top:32px;padding:20px;background:var(--bg-alt);border:1px solid var(--border);border-radius:12px;text-align:center">
+  <div style="margin-top:32px;padding:22px;background:var(--bg-alt);border:1px solid var(--border);border-radius:12px;text-align:center">
     <div style="font-size:28px;margin-bottom:6px">💼</div>
-    <p style="font-weight:600;margin:0 0 6px;font-size:15px">Add to your Dock for one-click access</p>
-    <p class="muted" style="font-size:13px;margin:0 0 12px;line-height:1.5">Open Finder → <code style="background:var(--border);padding:2px 6px;border-radius:4px">GetTheJob.app</code> (in the project folder) → drag it to your Dock.<br>One click launches the dashboard and runs your morning batch automatically.</p>
-    <p class="muted" style="font-size:12px;margin:0;opacity:.7">Requires <a href="https://docs.anthropic.com/en/docs/claude-code" target="_blank" style="color:var(--accent)">Claude Code</a> for AI-powered triage.</p>
+    <p style="font-weight:600;margin:0 0 10px;font-size:15px">Open the dashboard in one click next time <span class="muted" style="font-weight:400;font-size:12px">— macOS</span></p>
+    <div class="muted" style="font-size:13px;margin:0 auto 12px;line-height:1.6;text-align:left;max-width:540px">
+      The project ships with a small launcher app called <code style="background:var(--border);padding:2px 6px;border-radius:4px">GetTheJob.app</code>. To pin it:
+      <ol style="margin:8px 0 0;padding-left:20px">
+        <li>Open the <strong>GetTheJob</strong> folder you cloned (the project folder on your computer).</li>
+        <li>Drag <code style="background:var(--border);padding:2px 6px;border-radius:4px">GetTheJob.app</code> onto your Dock.</li>
+      </ol>
+      <div style="margin-top:8px">A single click then starts the server and opens this dashboard — no terminal needed.</div>
+    </div>
+    <p class="muted" style="font-size:12px;margin:0;opacity:.85">Not on a Mac? Run <code style="background:var(--border);padding:2px 6px;border-radius:4px">npm start</code> in the project folder instead. AI scoring &amp; apply packs need <a href="https://docs.anthropic.com/en/docs/claude-code" target="_blank" style="color:var(--accent)">Claude Code</a>.</p>
   </div>
 </div>
 

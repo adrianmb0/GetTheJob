@@ -24,6 +24,17 @@ npm start
 
 Open [http://localhost:3737](http://localhost:3737) — the guided setup wizard walks you through everything.
 
+### Opening it again later
+
+`npm start` from the project folder (the `GetTheJob` folder you cloned) always works, then open [http://localhost:3737](http://localhost:3737).
+
+On **macOS** you can skip the terminal: the repo ships with a small launcher app, **`GetTheJob.app`**, in that same project folder.
+
+- **Double-click `GetTheJob.app`** to start the server and open the dashboard, or **drag it onto your Dock** for one-click access from then on.
+- **First launch only:** because the app isn't code-signed, macOS may say it's from an unidentified developer. Right-click (or Control-click) `GetTheJob.app` → **Open** → **Open** to approve it once. After that, a normal click works.
+
+On **Windows / Linux**, there's no `.app` — use `npm start` and open the URL above.
+
 ## What you get
 
 | Feature | How |
@@ -46,11 +57,14 @@ Open [http://localhost:3737](http://localhost:3737) — the guided setup wizard 
 
 New users see an interactive setup wizard — no manual config file editing required:
 
-1. Preview the dashboard with sample data
-2. Enter your profile basics (name, location, target roles)
-3. Select your industry and the kinds of roles you're after
+1. Enter your profile basics (name, email, location, LinkedIn)
+2. Pick your industry/field and target roles
+3. Choose companies to track — select from a per-industry list, or paste any Greenhouse / Ashby / Lever careers URL
 4. Upload or paste your resume
-5. You're ready — run your first scan
+5. Add your story — headline, strengths, and a proof point (optional, powers cover letters)
+6. Run your first scan
+
+The wizard writes `config/profile.yml`, `portals.yml`, and `cv.md` for you. When it finishes, it points macOS users to `GetTheJob.app` for one-click launches (see [Opening it again later](#opening-it-again-later)).
 
 Power users can still set up manually via config files (see [First-time setup](#first-time-setup-manual)).
 
