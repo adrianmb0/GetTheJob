@@ -29,27 +29,29 @@ Read the FULL JD content. This step is the whole point of triage — deep JD rea
 
 Use the same A–F scoring logic from `_shared.md` (Match con CV, North Star alignment, Comp, Cultural signals, Red flags). Calculate a global 1.0–5.0 score.
 
-**Hard exclusions** (auto-score 1.0, verdict `SKIP`) — these are the USER's own
-guardrails, read at runtime from `modes/_profile.md` ("Your Guardrails /
-Deal-Breakers", "Your Comp Targets", "Your Location Policy") and
-`config/profile.yml`. Never hardcode one person's rules here. Apply whatever the
-user defined, typically:
-- Comp known to be below the user's floor (see `_profile.md` → Comp Targets)
-- Locations or work styles the user ruled out (see `_profile.md` → Location Policy)
-- Any industries, companies, or role levels the user listed as deal-breakers
-- The user's current/most-recent employer, if they listed it (and its subsidiaries)
+The USER's own guardrails live in `modes/_profile.md` under "Your Guardrails /
+Deal-Breakers", split into two lists. Read them at runtime and apply each kind
+differently. Never hardcode one person's rules here.
 
-If `_profile.md` defines **no** deal-breakers for a given dimension, do NOT
-hard-exclude on it — rank on fit and use soft penalties instead. A fresh user
-with no guardrails set should see jobs scored on merit, not auto-skipped.
+**Hard exclusions** — the `### Hard exclusions` list (auto-score 1.0, verdict
+`SKIP`). A posting matching any of these is dropped entirely. Typical entries:
+industries/companies/levels the user ruled out, work styles they excluded, comp
+below a floor they marked as hard, or their current employer. Also honor explicit
+hard limits in `config/profile.yml` (e.g. a comp floor).
 
-**Soft penalties** (don't auto-skip, but reflect in score):
+**Soft penalties** — the `### Soft penalties` list (lower the score, do NOT
+auto-skip; the posting still appears, just ranked lower). Apply these as score
+deductions, plus these always-on soft signals:
 - JD requires substantially more (or less) seniority/experience than the
   candidate's resume (`cv.md`) shows. Compare against the actual CV — penalize
   the mismatch; do NOT apply a fixed year threshold.
 - Hard requirement of a skill or industry vertical the candidate's CV doesn't show
 - On-site/hybrid in a location that conflicts with the user's location policy (when it isn't a hard exclusion)
 - Posting age >14 days (use `scan-history.tsv` `first_seen` for the URL — drop entirely if known)
+
+If `_profile.md` lists **no** hard exclusions, do NOT auto-skip on comp/level/
+location — rank on fit and rely on soft penalties. A fresh user with no guardrails
+set should see jobs scored on merit, not auto-skipped.
 
 ### Step 4 — Compose verdict
 

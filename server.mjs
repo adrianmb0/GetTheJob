@@ -612,10 +612,17 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .rules-head { margin-bottom: 12px; }
 .rules-head strong { font-size: 14px; }
 .rules-head .muted { display: block; font-size: 12px; margin-top: 3px; line-height: 1.5; }
-.rule-row { display: flex; gap: 8px; margin-bottom: 8px; }
-.rule-row input { flex: 1; padding: 9px 12px; border: 1px solid var(--border); border-radius: 9px; font-size: 13.5px; font-family: inherit; background: var(--canvas); color: var(--ink); }
-.rule-row input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
-.rule-del { flex: 0 0 auto; width: 36px; border: 1px solid var(--border); background: transparent; border-radius: 9px; cursor: pointer; color: var(--muted); font-size: 17px; line-height: 1; }
+.rules-group { margin-bottom: 16px; }
+.rules-group-h { font-size: 13px; font-weight: 600; margin-bottom: 9px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.rules-group-h .rg-sub { font-weight: 400; color: var(--muted); font-size: 12px; }
+.rg-badge { font-size: 10.5px; font-weight: 700; letter-spacing: .02em; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; }
+.rg-badge.hard { background: rgba(180,65,60,.13); color: #b4413c; }
+.rg-badge.soft { background: rgba(201,154,46,.18); color: #946f16; }
+.rule-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: flex-start; }
+.rule-row input, .rule-row textarea { flex: 1; padding: 9px 12px; border: 1px solid var(--border); border-radius: 9px; font-size: 13.5px; font-family: inherit; line-height: 1.45; background: var(--canvas); color: var(--ink); }
+.rule-row textarea { resize: none; overflow: hidden; min-height: 38px; }
+.rule-row input:focus, .rule-row textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+.rule-del { flex: 0 0 auto; width: 36px; height: 38px; border: 1px solid var(--border); background: transparent; border-radius: 9px; cursor: pointer; color: var(--muted); font-size: 17px; line-height: 1; }
 .rule-del:hover { border-color: #b4413c; color: #b4413c; }
 .rules-actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
 .btn-add-row { background: transparent; border: 1px dashed var(--border); border-radius: 9px; padding: 8px 12px; cursor: pointer; font-size: 13px; color: var(--ink); }
@@ -698,7 +705,7 @@ const PANEL_HTML = `
 
 const TABLE_JS = `
 <script>
-// ----- Scoring guardrails editor (Inbox) -----
+// ----- Scoring guardrails editor (Inbox + Settings): hard vs soft -----
 let guardrailsLoaded = false;
 function toggleGuardrails() {
   const panel = document.getElementById('guardrails-panel');
@@ -707,37 +714,43 @@ function toggleGuardrails() {
   if (open && !guardrailsLoaded) loadGuardrails();
 }
 async function loadGuardrails() {
-  const list = document.getElementById('guardrails-list');
-  if (!list) return;
-  list.innerHTML = '<div class="muted" style="padding:6px 0">Loading…</div>';
+  const hard = document.getElementById('guard-hard');
+  const soft = document.getElementById('guard-soft');
+  if (!hard || !soft) return;
+  hard.innerHTML = soft.innerHTML = '<div class="muted" style="padding:6px 0">Loading…</div>';
   try {
     const d = await (await fetch('/api/guardrails')).json();
-    list.innerHTML = '';
-    const items = (d.items && d.items.length) ? d.items : [''];
-    items.forEach(it => addGuardrailRow(it, false));
+    hard.innerHTML = ''; soft.innerHTML = '';
+    (d.hard || []).forEach(it => addRuleRow('hard', it, false));
+    (d.soft || []).forEach(it => addRuleRow('soft', it, false));
     guardrailsLoaded = true;
-  } catch (e) { list.innerHTML = '<div class="muted" style="padding:6px 0">Could not load scoring rules.</div>'; }
+  } catch (e) { hard.innerHTML = '<div class="muted" style="padding:6px 0">Could not load scoring rules.</div>'; }
 }
-function addGuardrailRow(val, doFocus) {
-  const list = document.getElementById('guardrails-list');
+function autoGrowRule(t) { t.style.height = 'auto'; t.style.height = Math.max(t.scrollHeight, 20) + 'px'; }
+function addRuleRow(group, val, doFocus) {
+  const list = document.getElementById('guard-' + group);
   if (!list) return;
   const row = document.createElement('div'); row.className = 'rule-row';
-  const inp = document.createElement('input'); inp.type = 'text'; inp.value = val || '';
-  inp.placeholder = 'e.g. Crypto / web3, a company name, or a level like Director+';
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addGuardrailRow('', true); } });
+  const ta = document.createElement('textarea'); ta.rows = 1; ta.value = val || '';
+  ta.placeholder = group === 'hard'
+    ? 'e.g. Crypto / web3, a company, or a level to skip entirely'
+    : 'e.g. requires far more experience than my CV, or on-site far from me';
+  ta.addEventListener('input', () => autoGrowRule(ta));
   const del = document.createElement('button'); del.type = 'button'; del.className = 'rule-del'; del.textContent = '×'; del.title = 'Remove';
   del.onclick = () => row.remove();
-  row.appendChild(inp); row.appendChild(del); list.appendChild(row);
-  if (doFocus) inp.focus();
+  row.appendChild(ta); row.appendChild(del); list.appendChild(row);
+  autoGrowRule(ta);
+  if (doFocus) ta.focus();
 }
 async function saveGuardrails(btn) {
-  const items = Array.from(document.querySelectorAll('#guardrails-list input')).map(i => i.value.trim()).filter(Boolean);
+  const collect = g => Array.from(document.querySelectorAll('#guard-' + g + ' textarea')).map(t => t.value.trim()).filter(Boolean);
+  const hard = collect('hard'), soft = collect('soft');
   const msg = document.getElementById('guardrails-msg');
   btn.disabled = true; if (msg) { msg.style.color = 'var(--muted)'; msg.textContent = 'Saving…'; }
   try {
-    const d = await (await fetch('/api/guardrails', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) })).json();
+    const d = await (await fetch('/api/guardrails', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hard, soft }) })).json();
     if (!d.ok) { if (msg) { msg.style.color = '#b4413c'; msg.textContent = 'Save failed: ' + (d.error || 'unknown'); } return; }
-    if (msg) { msg.style.color = '#3A6B45'; msg.textContent = 'Saved — ' + d.count + ' exclusion' + (d.count === 1 ? '' : 's') + '. Applies on the next scoring run.'; }
+    if (msg) { msg.style.color = '#3A6B45'; msg.textContent = 'Saved — ' + d.hard + ' hard, ' + d.soft + ' soft. Applies on the next scoring run.'; }
   } catch (e) { if (msg) { msg.style.color = '#b4413c'; msg.textContent = 'Save failed: ' + e.message; } }
   finally { btn.disabled = false; }
 }
@@ -2664,80 +2677,91 @@ function getCounts() {
   return { inbox, pipeline };
 }
 
-// ----- Scoring guardrails (the user's hard exclusions in modes/_profile.md) -----
-// Match any "## …Deal-Breaker…" or "## …Guardrail…" heading, since hand-curated
-// profiles use variants (e.g. "## Your Deal-Breakers (auto-discourage; …)").
+// ----- Scoring guardrails: hard exclusions vs soft penalties in _profile.md ----
+// Match any "## …Deal-Breaker…" / "## …Guardrail…" heading (hand-curated profiles
+// use variants). Within it the editor owns a marked region with two lists: HARD
+// (auto-skip, score 1.0) and SOFT (lower the score, still shown). Markers are HTML
+// comments so anything the user wrote outside them is left untouched.
 const GUARD_HEADING_RE = /^##\s+.*(guardrail|deal-?breaker)/i;
+const RULES_START = '<!-- gtj:rules:start -->';
+const RULES_END = '<!-- gtj:rules:end -->';
 
-// A clean, canonical section — used only when creating the section from scratch.
-function canonicalGuardrailSection(clean) {
-  return '## Your Guardrails / Deal-Breakers\n\n'
-    + 'The triage scorer auto-skips (score 1.0, verdict `SKIP`) anything here. Edit freely.\n\n'
-    + (clean.length
-        ? clean.map(s => '- ' + s).join('\n') + '\n'
-        : 'You set none, so jobs are ranked purely on fit — nothing is force-excluded. Add industries, companies, or levels here to auto-skip them.\n')
-    + '\n**Seniority/experience:** the scorer compares each JD against your resume (`cv.md`) and penalizes large gaps — it does not use a fixed year threshold.\n';
+function parseHardSoft(block) {
+  const hard = [], soft = [];
+  let cur = null;
+  for (const l of block.split('\n')) {
+    if (/^###\s+.*hard/i.test(l)) { cur = hard; continue; }
+    if (/^###\s+.*soft/i.test(l)) { cur = soft; continue; }
+    const m = l.match(/^\s*-\s+(.*)$/);
+    if (m && cur) { const it = m[1].trim(); if (it && !/^_.*_$/.test(it)) cur.push(it); }
+  }
+  return { hard, soft };
 }
 
-// Read the deal-breaker bullets from the Guardrails section of modes/_profile.md.
-// Skips intro prose and italic placeholder bullets (_..._) from the template.
+function managedBlock(hard, soft) {
+  const list = arr => arr.length ? arr.map(s => '- ' + s).join('\n') : '_None yet._';
+  return RULES_START + '\n\n'
+    + '### Hard exclusions — auto-skip (score 1.0, never shown as a match)\n\n' + list(hard) + '\n\n'
+    + '### Soft penalties — lower the score, but the posting still appears\n\n' + list(soft) + '\n\n'
+    + RULES_END;
+}
+
+// Returns { exists, hard:[], soft:[] }. Prefers the marked region; falls back to
+// ### Hard/### Soft subsections; finally treats a legacy flat bullet list as HARD.
 function readGuardrails() {
   const p = join(ROOT, 'modes', '_profile.md');
-  if (!existsSync(p)) return { exists: false, items: [] };
-  const lines = readFileSync(p, 'utf8').split('\n');
+  if (!existsSync(p)) return { exists: false, hard: [], soft: [] };
+  const text = readFileSync(p, 'utf8');
+  const s = text.indexOf(RULES_START), e = text.indexOf(RULES_END);
+  if (s >= 0 && e > s) return { exists: true, ...parseHardSoft(text.slice(s, e)) };
+  const lines = text.split('\n');
   const hIdx = lines.findIndex(l => GUARD_HEADING_RE.test(l));
-  if (hIdx < 0) return { exists: true, items: [] };
-  const items = [];
-  for (let i = hIdx + 1; i < lines.length; i++) {
-    if (lines[i].startsWith('## ')) break;
-    const m = lines[i].match(/^\s*-\s+(.*)$/);
-    if (m) {
-      const item = m[1].trim();
-      if (item && !/^_.*_$/.test(item)) items.push(item);
-    }
-  }
-  return { exists: true, items };
+  if (hIdx < 0) return { exists: true, hard: [], soft: [] };
+  let secEnd = lines.length;
+  for (let i = hIdx + 1; i < lines.length; i++) { if (lines[i].startsWith('## ')) { secEnd = i; break; } }
+  const section = lines.slice(hIdx, secEnd).join('\n');
+  if (/###\s+.*(hard|soft)/i.test(section)) return { exists: true, ...parseHardSoft(section) };
+  const hard = [];
+  for (let i = hIdx + 1; i < secEnd; i++) { const m = lines[i].match(/^\s*-\s+(.*)$/); if (m) { const it = m[1].trim(); if (it && !/^_.*_$/.test(it)) hard.push(it); } }
+  return { exists: true, hard, soft: [] };
 }
 
-// Save the edited items back into modes/_profile.md. Replaces just the bullet
-// block inside the existing Guardrails/Deal-Breakers section, preserving the
-// heading and any surrounding prose/notes. Creates the section/file if missing.
-function writeGuardrails(items) {
+// Writes the marked region into the guardrail section, preserving the heading and
+// any surrounding prose/notes. Migrates a legacy flat list (replaces those bullets
+// with the marked region). Creates the section/file when missing.
+function writeGuardrails(hard, soft) {
   const dir = join(ROOT, 'modes');
   mkdirSync(dir, { recursive: true });
   const p = join(dir, '_profile.md');
-  const clean = (items || []).map(s => String(s).trim()).filter(Boolean);
-  const bullets = clean.map(s => '- ' + s);
+  const H = (hard || []).map(s => String(s).trim()).filter(Boolean);
+  const S = (soft || []).map(s => String(s).trim()).filter(Boolean);
+  const block = managedBlock(H, S);
 
   let text = existsSync(p) ? readFileSync(p, 'utf8') : '';
   if (!text.trim()) {
-    writeFileSync(p, '# User Profile Context — get-the-job\n\n' + canonicalGuardrailSection(clean) + '\n');
-    return clean.length;
+    writeFileSync(p, '# User Profile Context — get-the-job\n\n## Your Guardrails / Deal-Breakers\n\n' + block + '\n');
+    return { hard: H.length, soft: S.length };
+  }
+  const s = text.indexOf(RULES_START), e = text.indexOf(RULES_END);
+  if (s >= 0 && e > s) {
+    writeFileSync(p, text.slice(0, s) + block + text.slice(e + RULES_END.length));
+    return { hard: H.length, soft: S.length };
   }
   const lines = text.split('\n');
   const hIdx = lines.findIndex(l => GUARD_HEADING_RE.test(l));
   if (hIdx < 0) {
-    writeFileSync(p, text.replace(/\s*$/, '') + '\n\n' + canonicalGuardrailSection(clean) + '\n');
-    return clean.length;
+    writeFileSync(p, text.replace(/\s*$/, '') + '\n\n## Your Guardrails / Deal-Breakers\n\n' + block + '\n');
+    return { hard: H.length, soft: S.length };
   }
-  // Section runs from the heading to the next "## " heading (or EOF).
-  let end = lines.length;
-  for (let i = hIdx + 1; i < lines.length; i++) { if (lines[i].startsWith('## ')) { end = i; break; } }
-  // Find the contiguous block of bullet lines within the section.
+  let secEnd = lines.length;
+  for (let i = hIdx + 1; i < lines.length; i++) { if (lines[i].startsWith('## ')) { secEnd = i; break; } }
   let bStart = -1, bEnd = -1;
-  for (let i = hIdx + 1; i < end; i++) {
-    if (/^\s*-\s+/.test(lines[i])) { if (bStart < 0) bStart = i; bEnd = i; }
-    else if (bStart >= 0) break; // block ended (blank line or prose after bullets)
-  }
-  let out;
-  if (bStart >= 0) {
-    out = lines.slice(0, bStart).concat(bullets, lines.slice(bEnd + 1));
-  } else {
-    // No bullets yet in the section — insert after the heading.
-    out = lines.slice(0, hIdx + 1).concat('', bullets, lines.slice(hIdx + 1));
-  }
+  for (let i = hIdx + 1; i < secEnd; i++) { if (/^\s*-\s+/.test(lines[i])) { if (bStart < 0) bStart = i; bEnd = i; } else if (bStart >= 0) break; }
+  const out = bStart >= 0
+    ? lines.slice(0, bStart).concat(block.split('\n'), lines.slice(bEnd + 1))
+    : lines.slice(0, hIdx + 1).concat('', block.split('\n'), lines.slice(hIdx + 1));
   writeFileSync(p, out.join('\n'));
-  return clean.length;
+  return { hard: H.length, soft: S.length };
 }
 
 // Inbox UI snippet: the "Scoring rules" toggle button + the editor panel.
@@ -2746,10 +2770,18 @@ function guardrailsUI() {
 }
 function guardrailsPanel(open) {
   return `<div id="guardrails-panel" class="rules-panel${open ? ' open' : ''}">
-  <div class="rules-head"><strong>Your hard exclusions</strong><span class="muted">Postings matching any line are auto-skipped (score 1.0) on the next scoring run. One rule per line — an industry, company, or level.</span></div>
-  <div id="guardrails-list"></div>
+  <div class="rules-head"><strong>Your scoring rules</strong><span class="muted">Two kinds, applied on the next scoring run. <b>Hard</b> = drop the posting entirely. <b>Soft</b> = keep it, just push its score down.</span></div>
+  <div class="rules-group">
+    <div class="rules-group-h"><span class="rg-badge hard">Hard</span> Exclude entirely <span class="rg-sub">— auto-skip, score 1.0, never shown</span></div>
+    <div id="guard-hard" class="rule-list"></div>
+    <button type="button" class="btn-add-row" onclick="addRuleRow('hard','',true)">+ Add hard exclusion</button>
+  </div>
+  <div class="rules-group">
+    <div class="rules-group-h"><span class="rg-badge soft">Soft</span> Weight the score down <span class="rg-sub">— still shown, just ranked lower</span></div>
+    <div id="guard-soft" class="rule-list"></div>
+    <button type="button" class="btn-add-row" onclick="addRuleRow('soft','',true)">+ Add soft penalty</button>
+  </div>
   <div class="rules-actions">
-    <button type="button" class="btn-add-row" onclick="addGuardrailRow('', true)">+ Add exclusion</button>
     <button type="button" class="btn-save" id="guardrails-save" onclick="saveGuardrails(this)">Save</button>
     <span id="guardrails-msg" class="muted"></span>
   </div>
@@ -2788,8 +2820,8 @@ function renderSettings() {
   const body = `
 <div class="toolbar"><div><h1>Settings</h1><div class="sub">Your setup. Scoring rules are editable here; change profile basics by re-running the wizard.</div></div></div>
 ${profileCard}
-<h3 style="margin:22px 0 4px">Scoring rules — your hard exclusions</h3>
-<div class="muted" style="margin:0 0 12px;font-size:13px">These are read every time your postings are scored. Edit, add, or remove them below.</div>
+<h3 style="margin:22px 0 4px">Scoring rules</h3>
+<div class="muted" style="margin:0 0 12px;font-size:13px">Read every time your postings are scored. <b>Hard</b> exclusions drop a posting; <b>soft</b> penalties just lower its score.</div>
 ${guardrailsPanel(true)}
 <script>document.addEventListener('DOMContentLoaded', function(){ loadGuardrails(); });</script>
 `;
@@ -2802,7 +2834,7 @@ function renderInbox(query) {
     return shell('Inbox',
       `<div class="toolbar"><div><h1>Inbox</h1></div><div class="tools">${guardrailsUI()}</div></div>
 ${guardrailsPanel()}
-<div class="empty" style="line-height:1.6">No scored leads yet.<br>1. Find jobs — run a scan (<code>npm run scan</code> or the scan button).<br>2. Score them — open this project in <b>Claude Code</b> and run <code>/get-the-job triage</code>.<br>Scored postings show up here.<br><span style="font-size:12.5px">Tip: set your hard exclusions above first — they shape what gets auto-skipped.</span></div>`,
+<div class="empty" style="line-height:1.6">No scored leads yet.<br>1. Find jobs — run a scan (<code>npm run scan</code> or the scan button).<br>2. Score them — open this project in <b>Claude Code</b> and run <code>/get-the-job triage</code>.<br>Scored postings show up here.<br><span style="font-size:12.5px">Tip: set your scoring rules above first — hard exclusions to drop postings, soft penalties to rank them down.</span></div>`,
       { view: 'inbox', ...getCounts() });
   }
   const text = readFileSync(path, 'utf8');
@@ -3381,10 +3413,13 @@ const server = createServer(async (req, res) => {
               ? 'Open to on-site and relocation' + (location ? ' (based in ' + location + ')' : '') + '. Location is not a strong filter; score on fit.'
               : 'Remote preferred. Hybrid near ' + (location || 'your area') + ' is fine. On-site far from there is scored down, not excluded.';
           const avoidItems = String(avoid || '').split(/\s*,\s*/).map(s => s.trim()).filter(Boolean);
-          const dealBreakers = [];
-          if (floorDisplay) dealBreakers.push('Comp known to be below your floor (' + floorDisplay + ').');
-          if (wp === 'remote') dealBreakers.push('Roles requiring regular on-site presence (you chose Remote only).');
-          avoidItems.forEach(a => dealBreakers.push(a));
+          // Hard = the user's explicit "rule out" choices. Soft = comp below floor
+          // (penalize, don't drop a near-miss). Editable later in Settings/Inbox.
+          const hardItems = [];
+          if (wp === 'remote') hardItems.push('Roles that require regular on-site presence (you chose Remote only).');
+          avoidItems.forEach(a => hardItems.push(a));
+          const softItems = [];
+          if (floorDisplay) softItems.push('Comp below your floor (' + floorDisplay + ') — push the score down and flag the gap.');
 
           let pm = '# User Profile Context — get-the-job' + (name ? ' (' + name + ')' : '') + '\n\n';
           pm += '<!-- Generated by the onboarding wizard. This file is yours — edit it freely.\n';
@@ -3399,13 +3434,9 @@ const server = createServer(async (req, res) => {
           pm += '\n## Your Location Policy\n\n';
           if (location) pm += '- **Based in:** ' + location + '\n';
           pm += '- ' + locPolicy + '\n';
-          pm += '\n## Your Guardrails / Deal-Breakers\n\nThe triage scorer auto-skips (score 1.0, verdict `SKIP`) anything here. ';
-          if (dealBreakers.length) {
-            pm += 'Edit freely.\n\n';
-            dealBreakers.forEach(d => { pm += '- ' + d + '\n'; });
-          } else {
-            pm += 'You set none, so jobs are ranked purely on fit — nothing is force-excluded. Add industries, companies, or levels here to auto-skip them.\n';
-          }
+          pm += '\n## Your Guardrails / Deal-Breakers\n\n';
+          pm += 'How the scorer uses this: **Hard** exclusions drop a posting (score 1.0). **Soft** penalties just lower its score. Edit these anytime in Settings.\n\n';
+          pm += managedBlock(hardItems, softItems) + '\n';
           pm += '\n**Seniority/experience:** the scorer compares each JD against your resume (`cv.md`) and penalizes large gaps — it does not use a fixed year threshold.\n';
           pm += '\n_Everything else (cover-letter voice, negotiation, framing) uses the generic defaults in `_shared.md` until you customize it here._\n';
           writeFileSync(join(ROOT, 'modes', '_profile.md'), pm);
@@ -3453,9 +3484,10 @@ const server = createServer(async (req, res) => {
     if (pathname === '/api/guardrails' && req.method === 'POST') {
       try {
         const body = await readOnboardingBody(req);
-        const items = Array.isArray(body.items) ? body.items : [];
-        const count = writeGuardrails(items);
-        return sendJson(res, 200, { ok: true, count });
+        const hard = Array.isArray(body.hard) ? body.hard : [];
+        const soft = Array.isArray(body.soft) ? body.soft : [];
+        const counts = writeGuardrails(hard, soft);
+        return sendJson(res, 200, { ok: true, ...counts });
       } catch (e) { return sendJson(res, 500, { ok: false, error: e.message }); }
     }
 
