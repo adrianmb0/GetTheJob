@@ -2665,7 +2665,19 @@ function getCounts() {
 }
 
 // ----- Scoring guardrails (the user's hard exclusions in modes/_profile.md) -----
-const GUARD_HEADING = '## Your Guardrails / Deal-Breakers';
+// Match any "## …Deal-Breaker…" or "## …Guardrail…" heading, since hand-curated
+// profiles use variants (e.g. "## Your Deal-Breakers (auto-discourage; …)").
+const GUARD_HEADING_RE = /^##\s+.*(guardrail|deal-?breaker)/i;
+
+// A clean, canonical section — used only when creating the section from scratch.
+function canonicalGuardrailSection(clean) {
+  return '## Your Guardrails / Deal-Breakers\n\n'
+    + 'The triage scorer auto-skips (score 1.0, verdict `SKIP`) anything here. Edit freely.\n\n'
+    + (clean.length
+        ? clean.map(s => '- ' + s).join('\n') + '\n'
+        : 'You set none, so jobs are ranked purely on fit — nothing is force-excluded. Add industries, companies, or levels here to auto-skip them.\n')
+    + '\n**Seniority/experience:** the scorer compares each JD against your resume (`cv.md`) and penalizes large gaps — it does not use a fixed year threshold.\n';
+}
 
 // Read the deal-breaker bullets from the Guardrails section of modes/_profile.md.
 // Skips intro prose and italic placeholder bullets (_..._) from the template.
@@ -2673,7 +2685,7 @@ function readGuardrails() {
   const p = join(ROOT, 'modes', '_profile.md');
   if (!existsSync(p)) return { exists: false, items: [] };
   const lines = readFileSync(p, 'utf8').split('\n');
-  const hIdx = lines.findIndex(l => l.trim() === GUARD_HEADING);
+  const hIdx = lines.findIndex(l => GUARD_HEADING_RE.test(l));
   if (hIdx < 0) return { exists: true, items: [] };
   const items = [];
   for (let i = hIdx + 1; i < lines.length; i++) {
@@ -2687,39 +2699,44 @@ function readGuardrails() {
   return { exists: true, items };
 }
 
-// Rewrite the Guardrails section of modes/_profile.md with the given items,
-// preserving the rest of the file. Creates the file/section if missing.
+// Save the edited items back into modes/_profile.md. Replaces just the bullet
+// block inside the existing Guardrails/Deal-Breakers section, preserving the
+// heading and any surrounding prose/notes. Creates the section/file if missing.
 function writeGuardrails(items) {
   const dir = join(ROOT, 'modes');
   mkdirSync(dir, { recursive: true });
   const p = join(dir, '_profile.md');
   const clean = (items || []).map(s => String(s).trim()).filter(Boolean);
-  const section = GUARD_HEADING + '\n\n'
-    + 'The triage scorer auto-skips (score 1.0, verdict `SKIP`) anything here. Edit freely.\n\n'
-    + (clean.length
-        ? clean.map(s => '- ' + s).join('\n') + '\n'
-        : 'You set none, so jobs are ranked purely on fit — nothing is force-excluded. Add industries, companies, or levels here to auto-skip them.\n')
-    + '\n**Seniority/experience:** the scorer compares each JD against your resume (`cv.md`) and penalizes large gaps — it does not use a fixed year threshold.\n';
+  const bullets = clean.map(s => '- ' + s);
 
   let text = existsSync(p) ? readFileSync(p, 'utf8') : '';
   if (!text.trim()) {
-    writeFileSync(p, '# User Profile Context — get-the-job\n\n' + section + '\n');
+    writeFileSync(p, '# User Profile Context — get-the-job\n\n' + canonicalGuardrailSection(clean) + '\n');
     return clean.length;
   }
   const lines = text.split('\n');
-  const hIdx = lines.findIndex(l => l.trim() === GUARD_HEADING);
+  const hIdx = lines.findIndex(l => GUARD_HEADING_RE.test(l));
   if (hIdx < 0) {
-    writeFileSync(p, text.replace(/\s*$/, '') + '\n\n' + section + '\n');
+    writeFileSync(p, text.replace(/\s*$/, '') + '\n\n' + canonicalGuardrailSection(clean) + '\n');
     return clean.length;
   }
+  // Section runs from the heading to the next "## " heading (or EOF).
   let end = lines.length;
   for (let i = hIdx + 1; i < lines.length; i++) { if (lines[i].startsWith('## ')) { end = i; break; } }
-  // Preserve a trailing "_Everything else…_" note if it lived in this section.
-  const everything = lines.slice(hIdx, end).find(l => l.trim().startsWith('_Everything else'));
-  let newSection = section + (everything ? '\n' + everything.trim() + '\n' : '');
-  const before = lines.slice(0, hIdx).join('\n').replace(/\s*$/, '');
-  const after = lines.slice(end).join('\n').replace(/^\s*/, '');
-  writeFileSync(p, before + '\n\n' + newSection + (after ? '\n' + after : '\n'));
+  // Find the contiguous block of bullet lines within the section.
+  let bStart = -1, bEnd = -1;
+  for (let i = hIdx + 1; i < end; i++) {
+    if (/^\s*-\s+/.test(lines[i])) { if (bStart < 0) bStart = i; bEnd = i; }
+    else if (bStart >= 0) break; // block ended (blank line or prose after bullets)
+  }
+  let out;
+  if (bStart >= 0) {
+    out = lines.slice(0, bStart).concat(bullets, lines.slice(bEnd + 1));
+  } else {
+    // No bullets yet in the section — insert after the heading.
+    out = lines.slice(0, hIdx + 1).concat('', bullets, lines.slice(hIdx + 1));
+  }
+  writeFileSync(p, out.join('\n'));
   return clean.length;
 }
 
