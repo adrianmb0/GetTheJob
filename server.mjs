@@ -606,6 +606,23 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .add-form .add-row { display: flex; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
 .add-form input[type=url], .add-form input[type=text] { padding: 9px 12px; border: 1px solid var(--border); border-radius: 9px; font-size: 13.5px; font-family: inherit; background: var(--surface); color: var(--ink); }
 .add-form input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+.rules-panel { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin: 0 0 16px; }
+.rules-panel.open { display: block; }
+.rules-head { margin-bottom: 12px; }
+.rules-head strong { font-size: 14px; }
+.rules-head .muted { display: block; font-size: 12px; margin-top: 3px; line-height: 1.5; }
+.rule-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.rule-row input { flex: 1; padding: 9px 12px; border: 1px solid var(--border); border-radius: 9px; font-size: 13.5px; font-family: inherit; background: var(--canvas); color: var(--ink); }
+.rule-row input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+.rule-del { flex: 0 0 auto; width: 36px; border: 1px solid var(--border); background: transparent; border-radius: 9px; cursor: pointer; color: var(--muted); font-size: 17px; line-height: 1; }
+.rule-del:hover { border-color: #b4413c; color: #b4413c; }
+.rules-actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.btn-add-row { background: transparent; border: 1px dashed var(--border); border-radius: 9px; padding: 8px 12px; cursor: pointer; font-size: 13px; color: var(--ink); }
+.btn-add-row:hover { border-color: var(--accent); color: var(--accent); }
+.btn-save { background: var(--accent); color: #fff; border: none; border-radius: 9px; padding: 8px 18px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.btn-save:hover { opacity: .9; }
+.btn-save:disabled { opacity: .5; cursor: default; }
+.rules-actions .muted { font-size: 12.5px; }
 .row-deleting { opacity: 0; transition: opacity 0.2s; }
 
 /* ----- batch banner ----- */
@@ -672,6 +689,49 @@ const PANEL_HTML = `
 
 const TABLE_JS = `
 <script>
+// ----- Scoring guardrails editor (Inbox) -----
+let guardrailsLoaded = false;
+function toggleGuardrails() {
+  const panel = document.getElementById('guardrails-panel');
+  if (!panel) return;
+  const open = panel.classList.toggle('open');
+  if (open && !guardrailsLoaded) loadGuardrails();
+}
+async function loadGuardrails() {
+  const list = document.getElementById('guardrails-list');
+  if (!list) return;
+  list.innerHTML = '<div class="muted" style="padding:6px 0">Loading…</div>';
+  try {
+    const d = await (await fetch('/api/guardrails')).json();
+    list.innerHTML = '';
+    const items = (d.items && d.items.length) ? d.items : [''];
+    items.forEach(it => addGuardrailRow(it, false));
+    guardrailsLoaded = true;
+  } catch (e) { list.innerHTML = '<div class="muted" style="padding:6px 0">Could not load scoring rules.</div>'; }
+}
+function addGuardrailRow(val, doFocus) {
+  const list = document.getElementById('guardrails-list');
+  if (!list) return;
+  const row = document.createElement('div'); row.className = 'rule-row';
+  const inp = document.createElement('input'); inp.type = 'text'; inp.value = val || '';
+  inp.placeholder = 'e.g. Crypto / web3, a company name, or a level like Director+';
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addGuardrailRow('', true); } });
+  const del = document.createElement('button'); del.type = 'button'; del.className = 'rule-del'; del.textContent = '×'; del.title = 'Remove';
+  del.onclick = () => row.remove();
+  row.appendChild(inp); row.appendChild(del); list.appendChild(row);
+  if (doFocus) inp.focus();
+}
+async function saveGuardrails(btn) {
+  const items = Array.from(document.querySelectorAll('#guardrails-list input')).map(i => i.value.trim()).filter(Boolean);
+  const msg = document.getElementById('guardrails-msg');
+  btn.disabled = true; if (msg) { msg.style.color = 'var(--muted)'; msg.textContent = 'Saving…'; }
+  try {
+    const d = await (await fetch('/api/guardrails', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) })).json();
+    if (!d.ok) { if (msg) { msg.style.color = '#b4413c'; msg.textContent = 'Save failed: ' + (d.error || 'unknown'); } return; }
+    if (msg) { msg.style.color = '#3A6B45'; msg.textContent = 'Saved — ' + d.count + ' exclusion' + (d.count === 1 ? '' : 's') + '. Applies on the next scoring run.'; }
+  } catch (e) { if (msg) { msg.style.color = '#b4413c'; msg.textContent = 'Save failed: ' + e.message; } }
+  finally { btn.disabled = false; }
+}
 function showToast(msg, isError) {
   let t = document.querySelector('.toast');
   if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
@@ -2595,10 +2655,89 @@ function getCounts() {
   return { inbox, pipeline };
 }
 
+// ----- Scoring guardrails (the user's hard exclusions in modes/_profile.md) -----
+const GUARD_HEADING = '## Your Guardrails / Deal-Breakers';
+
+// Read the deal-breaker bullets from the Guardrails section of modes/_profile.md.
+// Skips intro prose and italic placeholder bullets (_..._) from the template.
+function readGuardrails() {
+  const p = join(ROOT, 'modes', '_profile.md');
+  if (!existsSync(p)) return { exists: false, items: [] };
+  const lines = readFileSync(p, 'utf8').split('\n');
+  const hIdx = lines.findIndex(l => l.trim() === GUARD_HEADING);
+  if (hIdx < 0) return { exists: true, items: [] };
+  const items = [];
+  for (let i = hIdx + 1; i < lines.length; i++) {
+    if (lines[i].startsWith('## ')) break;
+    const m = lines[i].match(/^\s*-\s+(.*)$/);
+    if (m) {
+      const item = m[1].trim();
+      if (item && !/^_.*_$/.test(item)) items.push(item);
+    }
+  }
+  return { exists: true, items };
+}
+
+// Rewrite the Guardrails section of modes/_profile.md with the given items,
+// preserving the rest of the file. Creates the file/section if missing.
+function writeGuardrails(items) {
+  const dir = join(ROOT, 'modes');
+  mkdirSync(dir, { recursive: true });
+  const p = join(dir, '_profile.md');
+  const clean = (items || []).map(s => String(s).trim()).filter(Boolean);
+  const section = GUARD_HEADING + '\n\n'
+    + 'The triage scorer auto-skips (score 1.0, verdict `SKIP`) anything here. Edit freely.\n\n'
+    + (clean.length
+        ? clean.map(s => '- ' + s).join('\n') + '\n'
+        : 'You set none, so jobs are ranked purely on fit — nothing is force-excluded. Add industries, companies, or levels here to auto-skip them.\n')
+    + '\n**Seniority/experience:** the scorer compares each JD against your resume (`cv.md`) and penalizes large gaps — it does not use a fixed year threshold.\n';
+
+  let text = existsSync(p) ? readFileSync(p, 'utf8') : '';
+  if (!text.trim()) {
+    writeFileSync(p, '# User Profile Context — get-the-job\n\n' + section + '\n');
+    return clean.length;
+  }
+  const lines = text.split('\n');
+  const hIdx = lines.findIndex(l => l.trim() === GUARD_HEADING);
+  if (hIdx < 0) {
+    writeFileSync(p, text.replace(/\s*$/, '') + '\n\n' + section + '\n');
+    return clean.length;
+  }
+  let end = lines.length;
+  for (let i = hIdx + 1; i < lines.length; i++) { if (lines[i].startsWith('## ')) { end = i; break; } }
+  // Preserve a trailing "_Everything else…_" note if it lived in this section.
+  const everything = lines.slice(hIdx, end).find(l => l.trim().startsWith('_Everything else'));
+  let newSection = section + (everything ? '\n' + everything.trim() + '\n' : '');
+  const before = lines.slice(0, hIdx).join('\n').replace(/\s*$/, '');
+  const after = lines.slice(end).join('\n').replace(/^\s*/, '');
+  writeFileSync(p, before + '\n\n' + newSection + (after ? '\n' + after : '\n'));
+  return clean.length;
+}
+
+// Inbox UI snippet: the "Scoring rules" toggle button + the editor panel.
+function guardrailsUI() {
+  return `<button class="btn-add-toggle" onclick="toggleGuardrails()">⚙&nbsp; Scoring rules</button>`;
+}
+function guardrailsPanel() {
+  return `<div id="guardrails-panel" class="rules-panel">
+  <div class="rules-head"><strong>Your hard exclusions</strong><span class="muted">Postings matching any line are auto-skipped (score 1.0) on the next scoring run. One rule per line — an industry, company, or level.</span></div>
+  <div id="guardrails-list"></div>
+  <div class="rules-actions">
+    <button type="button" class="btn-add-row" onclick="addGuardrailRow('', true)">+ Add exclusion</button>
+    <button type="button" class="btn-save" id="guardrails-save" onclick="saveGuardrails(this)">Save</button>
+    <span id="guardrails-msg" class="muted"></span>
+  </div>
+</div>`;
+}
+
 function renderInbox(query) {
   const path = join(ROOT, 'data', 'triage-scores.tsv');
   if (!existsSync(path)) {
-    return shell('Inbox', '<h1>Inbox</h1><div class="empty" style="line-height:1.6">No scored leads yet.<br>1. Find jobs — run a scan (<code>npm run scan</code> or the scan button).<br>2. Score them — open this project in <b>Claude Code</b> and run <code>/get-the-job triage</code>.<br>Scored postings show up here.</div>', { view: 'inbox', ...getCounts() });
+    return shell('Inbox',
+      `<div class="toolbar"><div><h1>Inbox</h1></div><div class="tools">${guardrailsUI()}</div></div>
+${guardrailsPanel()}
+<div class="empty" style="line-height:1.6">No scored leads yet.<br>1. Find jobs — run a scan (<code>npm run scan</code> or the scan button).<br>2. Score them — open this project in <b>Claude Code</b> and run <code>/get-the-job triage</code>.<br>Scored postings show up here.<br><span style="font-size:12.5px">Tip: set your hard exclusions above first — they shape what gets auto-skipped.</span></div>`,
+      { view: 'inbox', ...getCounts() });
   }
   const text = readFileSync(path, 'utf8');
   const { header, rows: allRows } = parseTsv(text);
@@ -2798,7 +2937,9 @@ function runBatch(btn){
     <h1>Inbox</h1>
     <div class="sub">Open roles the scanner found and scored against your profile. Send the strong ones to your pipeline.</div>
   </div>
+  <div class="tools">${guardrailsUI()}</div>
 </div>
+${guardrailsPanel()}
 <div class="stats">
   <div class="stat"><b>${sorted.length}</b>leads</div>
   <div class="stat"><b>${strongCount}</b>strong (4.0+)</div>
@@ -2990,9 +3131,12 @@ const server = createServer(async (req, res) => {
     const pathname = url.split('?')[0];
     const query = parseQuery(url);
 
-    // Dev ephemeral mode: reset the sandbox on each page load so onboarding
-    // always restarts fresh on refresh. No-op unless EPHEMERAL=1 + sandbox ROOT.
-    if (EPHEMERAL && (pathname === '/' || pathname === '/index.html' || pathname === '/triage' || pathname === '/onboarding')) {
+    // Dev ephemeral mode: reset the sandbox only when the ONBOARDING page is
+    // (re)loaded, so refreshing the wizard gives a clean run — but completing it
+    // and going to the dashboard ('/') still works. No-op unless EPHEMERAL=1 +
+    // sandbox ROOT. (Wiping on '/' too would delete the just-created profile and
+    // bounce you back to the start of onboarding.)
+    if (EPHEMERAL && pathname === '/onboarding') {
       wipeEphemeralData();
     }
 
@@ -3227,6 +3371,19 @@ const server = createServer(async (req, res) => {
       } catch (e) {
         return sendJson(res, 500, { ok: false, error: e.message });
       }
+    }
+
+    if (pathname === '/api/guardrails' && req.method === 'GET') {
+      try { return sendJson(res, 200, readGuardrails()); }
+      catch (e) { return sendJson(res, 500, { ok: false, error: e.message }); }
+    }
+    if (pathname === '/api/guardrails' && req.method === 'POST') {
+      try {
+        const body = await readOnboardingBody(req);
+        const items = Array.isArray(body.items) ? body.items : [];
+        const count = writeGuardrails(items);
+        return sendJson(res, 200, { ok: true, count });
+      } catch (e) { return sendJson(res, 500, { ok: false, error: e.message }); }
     }
 
     // ----- Scan API -----
