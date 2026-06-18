@@ -29,21 +29,26 @@ Read the FULL JD content. This step is the whole point of triage — deep JD rea
 
 Use the same A–F scoring logic from `_shared.md` (Match con CV, North Star alignment, Comp, Cultural signals, Red flags). Calculate a global 1.0–5.0 score.
 
-**Hard exclusions** (auto-score 1.0, verdict `SKIP`):
-- Microsoft (current employer) — see `modes/_profile.md`
-- LinkedIn or GitHub (Microsoft-owned)
-- Crypto / web3 / blockchain
-- Pre-Senior PM level (APM, PM I, junior, associate, intern, etc.)
-- **Staff PM, Group PM, Director+, VP, CPO** — these require 8-10+ years and/or managing PMs; out of range
-- Pre-seed / seed-stage company
-- Comp known to be below $200K USD floor
-- **Required experience > 7 years** (Adrian has ~5; 8+, 10+, etc. are out of range)
-- **People-manager roles** (managing PMs as direct reports — see `modes/_profile.md` for the distinction between "leading cross-functional teams" which is fine vs "managing PMs" which isn't)
-- **Non-US/non-Remote locations** — Europe, Asia, Oceania are out of scope (see `location_filter` in `portals.yml`)
+**Hard exclusions** (auto-score 1.0, verdict `SKIP`) — these are the USER's own
+guardrails, read at runtime from `modes/_profile.md` ("Your Guardrails /
+Deal-Breakers", "Your Comp Targets", "Your Location Policy") and
+`config/profile.yml`. Never hardcode one person's rules here. Apply whatever the
+user defined, typically:
+- Comp known to be below the user's floor (see `_profile.md` → Comp Targets)
+- Locations or work styles the user ruled out (see `_profile.md` → Location Policy)
+- Any industries, companies, or role levels the user listed as deal-breakers
+- The user's current/most-recent employer, if they listed it (and its subsidiaries)
+
+If `_profile.md` defines **no** deal-breakers for a given dimension, do NOT
+hard-exclude on it — rank on fit and use soft penalties instead. A fresh user
+with no guardrails set should see jobs scored on merit, not auto-skipped.
 
 **Soft penalties** (don't auto-skip, but reflect in score):
-- Hard requirement of skill Adrian doesn't have (e.g. specific industry vertical)
-- Onsite-only in city Adrian isn't in
+- JD requires substantially more (or less) seniority/experience than the
+  candidate's resume (`cv.md`) shows. Compare against the actual CV — penalize
+  the mismatch; do NOT apply a fixed year threshold.
+- Hard requirement of a skill or industry vertical the candidate's CV doesn't show
+- On-site/hybrid in a location that conflicts with the user's location policy (when it isn't a hard exclusion)
 - Posting age >14 days (use `scan-history.tsv` `first_seen` for the URL — drop entirely if known)
 
 ### Step 4 — Compose verdict
@@ -75,9 +80,9 @@ Row format:
 - `role`: exact role title from JD
 - `location`: short location string (e.g. `Remote US`, `SF hybrid`, `NYC`, `London`, `Seattle`). Use `Remote` for fully remote with no country restriction. Leave empty if unknown.
 - `one_line_note`: ≤120 chars, format: `top fit + top gap + comp flag`. Examples:
-  - `"Founding PM at agent-platform unicorn; 0-to-1 + AI-native fit; $200-300K; remote-first"`
-  - `"Strong Technical AI PM match but requires 8+ yrs (Adrian ~5); comp $260-340K; SF hybrid"`
-  - `"SKIP — onsite-only in NYC, no remote, comp not disclosed"`
+  - `"Strong fit for target archetype; comp in range; remote-first"`
+  - `"Good role match but JD asks ~3 more years than the CV shows; comp above range; SF hybrid"`
+  - `"SKIP — on-site only, conflicts with the user's remote policy; comp not disclosed"`
 
 **RULE — append only.** Never rewrite the file. Multiple parallel triage calls may be writing simultaneously; appending is safe.
 

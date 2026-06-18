@@ -4,15 +4,28 @@
 // Works standalone or pointed at a get-the-job data directory.
 
 import { createServer } from 'node:http';
-import { readFileSync, writeFileSync, existsSync, statSync, copyFileSync, renameSync, readdirSync, createReadStream, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, statSync, copyFileSync, renameSync, readdirSync, createReadStream, mkdirSync, rmSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
+import yaml from 'js-yaml';
 
 const PORT = process.env.PORT || 3737;
-const ROOT = process.env.DATA_DIR
-  ? resolve(process.env.DATA_DIR)
-  : resolve(fileURLToPath(import.meta.url), '..');
+const SRC_DIR = resolve(fileURLToPath(import.meta.url), '..');
+const ROOT = process.env.DATA_DIR ? resolve(process.env.DATA_DIR) : SRC_DIR;
+
+// Dev-only: when EPHEMERAL=1, wipe the generated user files before each page load
+// so the onboarding wizard always starts fresh on refresh (for repeated testing
+// with mock data). Hard-guarded to a sandbox DATA_DIR — it refuses to run when
+// ROOT is the source tree, so it can NEVER touch your real data.
+const EPHEMERAL = process.env.EPHEMERAL === '1' && ROOT !== SRC_DIR;
+function wipeEphemeralData() {
+  if (!EPHEMERAL || ROOT === SRC_DIR) return;
+  for (const f of ['config/profile.yml', 'portals.yml', 'cv.md', 'cv.pdf', 'modes/_profile.md',
+                   'data/applications.md', 'data/pipeline.md', 'data/triage-scores.tsv', 'data/scan-history.tsv']) {
+    try { rmSync(join(ROOT, f), { force: true }); } catch { /* ignore */ }
+  }
+}
 
 // ----- auto-fix GetTheJob.app permissions on startup -----
 const APP_LAUNCHER = join(ROOT, 'GetTheJob.app', 'Contents', 'MacOS', 'GetTheJob');
@@ -594,6 +607,31 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .add-form .add-row { display: flex; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
 .add-form input[type=url], .add-form input[type=text] { padding: 9px 12px; border: 1px solid var(--border); border-radius: 9px; font-size: 13.5px; font-family: inherit; background: var(--surface); color: var(--ink); }
 .add-form input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+.rules-panel { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin: 0 0 16px; }
+.rules-panel.open { display: block; }
+.rules-head { margin-bottom: 12px; }
+.rules-head strong { font-size: 14px; }
+.rules-head .muted { display: block; font-size: 12px; margin-top: 3px; line-height: 1.5; }
+.rule-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.rule-row input { flex: 1; padding: 9px 12px; border: 1px solid var(--border); border-radius: 9px; font-size: 13.5px; font-family: inherit; background: var(--canvas); color: var(--ink); }
+.rule-row input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+.rule-del { flex: 0 0 auto; width: 36px; border: 1px solid var(--border); background: transparent; border-radius: 9px; cursor: pointer; color: var(--muted); font-size: 17px; line-height: 1; }
+.rule-del:hover { border-color: #b4413c; color: #b4413c; }
+.rules-actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.btn-add-row { background: transparent; border: 1px dashed var(--border); border-radius: 9px; padding: 8px 12px; cursor: pointer; font-size: 13px; color: var(--ink); }
+.btn-add-row:hover { border-color: var(--accent); color: var(--accent); }
+.btn-save { background: var(--accent); color: #fff; border: none; border-radius: 9px; padding: 8px 18px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.btn-save:hover { opacity: .9; }
+.btn-save:disabled { opacity: .5; cursor: default; }
+.rules-actions .muted { font-size: 12.5px; }
+.set-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; margin: 0 0 8px; }
+.set-card h3 { margin: 0 0 12px; font-size: 15px; }
+.set-row { display: flex; gap: 16px; padding: 7px 0; border-bottom: 1px solid var(--hairline); font-size: 13.5px; }
+.set-row:last-of-type { border-bottom: none; }
+.set-k { flex: 0 0 150px; color: var(--muted); }
+.set-v { flex: 1; color: var(--ink); }
+.btn-set { display: inline-block; background: var(--accent); color: #fff; text-decoration: none; border-radius: 9px; padding: 8px 16px; font-size: 13px; font-weight: 600; }
+.btn-set:hover { opacity: .9; }
 .row-deleting { opacity: 0; transition: opacity 0.2s; }
 
 /* ----- batch banner ----- */
@@ -660,6 +698,49 @@ const PANEL_HTML = `
 
 const TABLE_JS = `
 <script>
+// ----- Scoring guardrails editor (Inbox) -----
+let guardrailsLoaded = false;
+function toggleGuardrails() {
+  const panel = document.getElementById('guardrails-panel');
+  if (!panel) return;
+  const open = panel.classList.toggle('open');
+  if (open && !guardrailsLoaded) loadGuardrails();
+}
+async function loadGuardrails() {
+  const list = document.getElementById('guardrails-list');
+  if (!list) return;
+  list.innerHTML = '<div class="muted" style="padding:6px 0">Loading…</div>';
+  try {
+    const d = await (await fetch('/api/guardrails')).json();
+    list.innerHTML = '';
+    const items = (d.items && d.items.length) ? d.items : [''];
+    items.forEach(it => addGuardrailRow(it, false));
+    guardrailsLoaded = true;
+  } catch (e) { list.innerHTML = '<div class="muted" style="padding:6px 0">Could not load scoring rules.</div>'; }
+}
+function addGuardrailRow(val, doFocus) {
+  const list = document.getElementById('guardrails-list');
+  if (!list) return;
+  const row = document.createElement('div'); row.className = 'rule-row';
+  const inp = document.createElement('input'); inp.type = 'text'; inp.value = val || '';
+  inp.placeholder = 'e.g. Crypto / web3, a company name, or a level like Director+';
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addGuardrailRow('', true); } });
+  const del = document.createElement('button'); del.type = 'button'; del.className = 'rule-del'; del.textContent = '×'; del.title = 'Remove';
+  del.onclick = () => row.remove();
+  row.appendChild(inp); row.appendChild(del); list.appendChild(row);
+  if (doFocus) inp.focus();
+}
+async function saveGuardrails(btn) {
+  const items = Array.from(document.querySelectorAll('#guardrails-list input')).map(i => i.value.trim()).filter(Boolean);
+  const msg = document.getElementById('guardrails-msg');
+  btn.disabled = true; if (msg) { msg.style.color = 'var(--muted)'; msg.textContent = 'Saving…'; }
+  try {
+    const d = await (await fetch('/api/guardrails', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) })).json();
+    if (!d.ok) { if (msg) { msg.style.color = '#b4413c'; msg.textContent = 'Save failed: ' + (d.error || 'unknown'); } return; }
+    if (msg) { msg.style.color = '#3A6B45'; msg.textContent = 'Saved — ' + d.count + ' exclusion' + (d.count === 1 ? '' : 's') + '. Applies on the next scoring run.'; }
+  } catch (e) { if (msg) { msg.style.color = '#b4413c'; msg.textContent = 'Save failed: ' + e.message; } }
+  finally { btn.disabled = false; }
+}
 function showToast(msg, isError) {
   let t = document.querySelector('.toast');
   if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
@@ -887,7 +968,7 @@ function shell(title, bodyHtml, nav = {}) {
     <div class="menu">
       <button class="icon-btn" title="More" aria-label="More" onclick="toggleMenu(event, this)">⋯</button>
       <div class="menu-pop">
-        <a href="/onboarding?preview=1">⚙&nbsp; Settings</a>
+        <a href="/settings">⚙&nbsp; Settings</a>
         <div class="sep"></div>
         <button class="danger" onclick="quitServer()">⎋&nbsp; Quit GetTheJob</button>
       </div>
@@ -911,33 +992,43 @@ function renderOnboarding(previewMode = false) {
   const demoAppExists = existsSync(demoAppPath);
   const demoTriageExists = existsSync(demoTriagePath);
 
+  // Both previews mirror the real redesigned dashboard (Kanban board + lead list)
+  // so the welcome-screen peek matches what users actually get.
   let previewTrackerHtml = '<div class="empty">Demo data not found.</div>';
   if (demoAppExists) {
     const { header, rows } = parseApplicationsMd(readFileSync(demoAppPath, 'utf8'));
     const idx = {
-      num: header.findIndex(h => h.trim() === '#'),
       date: header.findIndex(h => /^date$/i.test(h)),
       company: header.findIndex(h => /^company$/i.test(h)),
       role: header.findIndex(h => /^role$/i.test(h)),
       score: header.findIndex(h => /^score$/i.test(h)),
       status: header.findIndex(h => /^status$/i.test(h)),
-      notes: header.findIndex(h => /^notes$/i.test(h)),
     };
-    const tbodyRows = rows.map(r => {
-      const status = (r[idx.status] || '').trim();
+    const COLS = [
+      { key: 'Reviewing',   dot: 'var(--neutral-ink)', statuses: ['Evaluated'] },
+      { key: 'Shortlisted', dot: '#C99A2E',            statuses: ['Shortlisted'] },
+      { key: 'Applied',     dot: 'var(--accent)',      statuses: ['Applied', 'Responded'] },
+      { key: 'Interview',   dot: '#8B5CF6',            statuses: ['Interview'] },
+      { key: 'Offer',       dot: '#3A6B45',            statuses: ['Offer'] },
+    ];
+    const CLOSED = ['Rejected', 'Discarded'];
+    const miniCard = (r) => {
       const scoreRaw = r[idx.score] || '';
-      const rowClass = ['Applied','Rejected','Discarded'].includes(status) ? `row-${status.toLowerCase()}` : '';
-      return `<tr class="${rowClass}">
-        <td>${escapeHtml(r[idx.num] || '')}</td>
-        <td>${escapeHtml(r[idx.date] || '')}</td>
-        <td><strong>${escapeHtml(r[idx.company] || '')}</strong></td>
-        <td>${escapeHtml(r[idx.role] || '')}</td>
-        <td><span class="score-pill ${scoreClass(scoreRaw)}">${escapeHtml(scoreRaw)}</span></td>
-        <td>${escapeHtml(status)}</td>
-        <td class="muted" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r[idx.notes] || '')}</td>
-      </tr>`;
+      return `<div class="kc">
+        <div class="kc-top"><div><div class="co">${escapeHtml(r[idx.company] || '')}</div><div class="ro">${escapeHtml(r[idx.role] || '')}</div></div></div>
+        <div class="foot"><span class="score-mini ${scoreClass(scoreRaw)}">${escapeHtml(scoreRaw || '—')}</span><span class="kmeta">${escapeHtml(r[idx.date] || '')}</span></div>
+      </div>`;
+    };
+    const columnsHtml = COLS.map(c => {
+      const cards = rows.filter(r => c.statuses.includes((r[idx.status] || '').trim()));
+      const inner = cards.length ? cards.map(miniCard).join('') : `<div class="kc-empty">${c.key === 'Offer' ? 'Your next milestone' : 'Nothing here yet'}</div>`;
+      return `<div class="col"><div class="col-h"><span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div>${inner}</div>`;
     }).join('');
-    previewTrackerHtml = `<table><thead><tr><th>#</th><th>Date</th><th>Company</th><th>Role</th><th>Score</th><th>Status</th><th>Notes</th></tr></thead><tbody>${tbodyRows}</tbody></table>`;
+    const closedCards = rows.filter(r => CLOSED.includes((r[idx.status] || '').trim()));
+    const closedHtml = closedCards.length
+      ? `<details class="closed-lane"><summary>Closed — ${closedCards.length} (rejected / discarded)</summary><div class="closed-grid">${closedCards.map(miniCard).join('')}</div></details>`
+      : '';
+    previewTrackerHtml = `<div style="padding:12px"><div class="board">${columnsHtml}</div>${closedHtml}</div>`;
   }
 
   let previewTriageHtml = '<div class="empty">Demo data not found.</div>';
@@ -951,19 +1042,23 @@ function renderOnboarding(previewMode = false) {
       location: header.findIndex(h => /^location$/i.test(h)),
       note: header.findIndex(h => /^one[_ ]line[_ ]note$/i.test(h)),
     };
-    const sorted = rows.slice().sort((a, b) => parseFloat(b[idx.score]) - parseFloat(a[idx.score]));
-    const tbodyRows = sorted.map(r => {
+    const sorted = rows.slice().sort((a, b) => parseFloat(b[idx.score]) - parseFloat(a[idx.score])).slice(0, 6);
+    const leads = sorted.map(r => {
       const v = (r[idx.verdict] || '').trim();
-      return `<tr>
-        <td><span class="score-pill ${scoreClass(r[idx.score])}">${escapeHtml(r[idx.score])}</span></td>
-        <td><span class="verdict-pill ${verdictClass(v)}">${escapeHtml(v)}</span></td>
-        <td><strong>${escapeHtml(r[idx.company] || '')}</strong></td>
-        <td>${escapeHtml(r[idx.role] || '')}</td>
-        <td>${escapeHtml(r[idx.location] || '')}</td>
-        <td class="muted">${escapeHtml(r[idx.note] || '')}</td>
-      </tr>`;
+      const scoreRaw = r[idx.score] || '';
+      const meta = [r[idx.location], r[idx.note]].filter(Boolean).map(x => `<span>${escapeHtml(x)}</span>`).join('');
+      return `<div class="lead">
+        <div class="score-chip ${scoreClass(scoreRaw)}">${escapeHtml(scoreRaw || '—')}</div>
+        <div class="lead-main">
+          <div class="lead-co">${escapeHtml(r[idx.company] || '')}</div>
+          <div class="lead-role">${escapeHtml(r[idx.role] || '')}</div>
+          <div class="lead-meta">${meta}</div>
+        </div>
+        ${v ? `<span class="verdict-pill ${verdictClass(v)}">${escapeHtml(v)}</span>` : ''}
+        <div class="lead-act"><button class="btn-shortlist">→ Pipeline</button></div>
+      </div>`;
     }).join('');
-    previewTriageHtml = `<table><thead><tr><th>Score</th><th>Verdict</th><th>Company</th><th>Role</th><th>Location</th><th>Note</th></tr></thead><tbody>${tbodyRows}</tbody></table>`;
+    previewTriageHtml = `<div class="lead-list">${leads}</div>`;
   }
 
   const industriesJson = JSON.stringify(INDUSTRIES);
@@ -979,15 +1074,23 @@ function renderOnboarding(previewMode = false) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 ${CSS}
-.onboarding { max-width: 1100px; margin: 0 auto; padding: 20px 32px 40px; }
-.ob-step[data-step="1"], .ob-step[data-step="2"], .ob-step[data-step="3"], .ob-step[data-step="4"], .ob-step[data-step="5"], .ob-step[data-step="6"] { max-width: 800px; margin: 0 auto; }
+.onboarding { max-width: 1100px; margin: 0 auto; padding: 72px 32px 40px; min-height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; }
+.ob-step[data-step="1"], .ob-step[data-step="2"], .ob-step[data-step="3"], .ob-step[data-step="4"], .ob-step[data-step="5"], .ob-step[data-step="6"] { max-width: 760px; }
 .ob-hero { text-align: center; margin-bottom: 12px; }
 .ob-hero h1 { font-size: 26px; margin: 0 0 4px; }
 .ob-hero .ob-icon { font-size: 32px; margin-bottom: 4px; }
 .ob-hero p { color: var(--muted); font-size: 14px; margin: 0; }
-.ob-step { display: none; }
-.ob-step.active { display: block; }
-.ob-progress { display: flex; justify-content: center; gap: 8px; margin: 0 0 32px; }
+.ob-step { display: none; width: 100%; }
+/* Vertically center the active step; auto margins collapse (no clipping) when a
+   step is taller than the viewport, so tall steps just scroll from the top. */
+.ob-step.active { display: block; margin-top: auto; margin-bottom: auto; animation: obStepIn .28s ease both; }
+/* Opacity-only (no transform): a transform here would make the fixed progress
+   bar resolve against this step instead of the viewport. */
+@keyframes obStepIn { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .ob-step.active { animation: none; } }
+/* Progress bar is pinned to the top of the viewport so it stays put while the
+   step content centers below it (only the active step's bar is ever rendered). */
+.ob-progress { position: fixed; top: 26px; left: 0; right: 0; display: flex; justify-content: center; gap: 8px; margin: 0; z-index: 20; }
 .ob-progress .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); transition: background 0.2s; }
 .ob-progress .dot.done { background: var(--high); }
 .ob-progress .dot.current { background: var(--accent); }
@@ -1013,7 +1116,9 @@ ${CSS}
 .ob-field .ob-hint { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
 .ob-field input, .ob-field textarea, .ob-field select { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; font-family: inherit; background: #fff; }
 .ob-field input:focus, .ob-field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
-.ob-field textarea { min-height: 200px; font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace; font-size: 13px; }
+.ob-field textarea { min-height: 200px; font-family: inherit; font-size: 14px; line-height: 1.5; }
+/* The CV field holds markdown, so monospace is intentional there only. */
+#ob-cv { font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace; font-size: 13px; }
 .ob-row { display: flex; gap: 16px; }
 .ob-row > .ob-field { flex: 1; }
 .ob-industry-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 8px; }
@@ -1036,9 +1141,10 @@ ${CSS}
 .ob-preview-tabs { display: flex; gap: 0; margin-bottom: 0; }
 .ob-preview-tab { padding: 8px 20px; border: 1px solid var(--border); border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 13px; font-weight: 500; background: var(--row-alt); color: var(--muted); }
 .ob-preview-tab.active { background: #fff; color: var(--fg); border-bottom-color: #fff; position: relative; z-index: 1; }
-.ob-preview-panel { border: 1px solid var(--border); border-radius: 0 6px 6px 6px; background: #fff; padding: 0; max-height: 260px; overflow: auto; position: relative; top: -1px; }
-.ob-preview-panel table { font-size: 12.5px; border-collapse: separate; border-spacing: 0; }
-.ob-preview-panel thead th { position: sticky; top: 0; background: #fff; z-index: 2; padding: 8px 6px; border-bottom: 2px solid var(--border); }
+.ob-preview-panel { border: 1px solid var(--border); border-radius: 0 6px 6px 6px; background: var(--canvas); padding: 0; max-height: 340px; overflow: auto; position: relative; top: -1px; }
+.ob-preview-panel .board { grid-template-columns: repeat(5, minmax(150px, 1fr)); }
+.ob-preview-panel .col { min-height: 120px; }
+.ob-preview-panel .lead-list { background: var(--surface); }
 .ob-preview-panel .disabled-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; }
 .ob-preview-wrap { position: relative; }
 .ob-upload-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 40px 20px; text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; margin-bottom: 16px; }
@@ -1076,7 +1182,7 @@ ${CSS}
     <button class="ob-btn ob-btn-primary ob-btn-lg" onclick="goStep(1)">Get Started →</button>
     <a class="ob-manual" href="https://github.com/adrianmb0/GetTheJob#first-time-setup-manual" target="_blank">I prefer to set up manually</a>
   </div>
-  <div class="ob-prereq muted" style="text-align:center;font-size:12.5px;margin:14px auto 0;max-width:560px;line-height:1.5">⚙️ Runs on <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a> with a Claude Pro or Max plan (or API key). Scanning &amp; tracking are free — AI scoring and apply packs use your plan.</div>
+  <div class="ob-prereq muted" style="text-align:center;font-size:12.5px;margin:14px auto 0;max-width:560px;line-height:1.5">⚙️ Runs on <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a> with a Claude Pro or Max plan. Scanning &amp; tracking are free — AI scoring and apply packs use your plan.</div>
   <div class="ob-preview-caption">A peek at your dashboard</div>
   <div class="ob-preview-tabs" style="margin:0">
     <div class="ob-preview-tab active" onclick="switchPreview('tracker')">Pipeline</div>
@@ -1091,7 +1197,7 @@ ${CSS}
 
 <!-- Step 1: Profile -->
 <div class="ob-step" data-step="1">
-  <div class="ob-progress"><div class="dot current"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+  <div class="ob-progress"><div class="dot current"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
   <h2 style="text-align:center;margin-top:0">About You</h2>
   <p class="muted" style="text-align:center">Basic info for your profile. You can always edit this later.</p>
   <div class="ob-row">
@@ -1110,7 +1216,7 @@ ${CSS}
 
 <!-- Step 2: Industry, Roles, Comp -->
 <div class="ob-step" data-step="2">
-  <div class="ob-progress"><div class="dot done"></div><div class="dot current"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+  <div class="ob-progress"><div class="dot done"></div><div class="dot current"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
   <h2 style="text-align:center;margin-top:0">What Are You Looking For?</h2>
   <p class="muted" style="text-align:center">Select your field and target roles so we can find the right jobs for you.</p>
 
@@ -1130,10 +1236,24 @@ ${CSS}
   </div>
 
   <div class="ob-section-title" style="margin-top:28px">Compensation Target <span style="font-weight:400;color:var(--muted)">(optional)</span></div>
+  <div class="ob-hint" style="font-size:12px;color:var(--muted);margin-bottom:6px">The low end becomes your floor — roles known to pay below it get flagged and scored down.</div>
   <div class="ob-comp-row">
     <div class="ob-field" style="margin:0"><input type="text" id="ob-comp" placeholder="$120K-180K"></div>
     <div class="ob-field" style="margin:0">
       <select id="ob-currency"><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option><option value="CHF">CHF</option><option value="CAD">CAD</option><option value="AUD">AUD</option><option value="Other">Other</option></select>
+    </div>
+  </div>
+
+  <div class="ob-row" style="margin-top:24px">
+    <div class="ob-field" style="margin:0">
+      <label>Work preference</label>
+      <div class="ob-hint">Shapes how location fit is scored.</div>
+      <select id="ob-workpref"><option value="remote">Remote only</option><option value="hybrid" selected>Remote or hybrid near me</option><option value="onsite">Open to on-site / relocation</option></select>
+    </div>
+    <div class="ob-field" style="margin:0">
+      <label>Rule anything out? <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+      <div class="ob-hint">Industries, companies, or levels to auto-skip. Comma-separated.</div>
+      <input type="text" id="ob-avoid" placeholder="Crypto, my current employer, Director+" autocomplete="off">
     </div>
   </div>
 
@@ -1254,11 +1374,18 @@ ${CSS}
     <p id="ob-scan-status" style="font-size:14px">Scanning job boards...</p>
     <div style="width:200px;height:4px;background:var(--border);border-radius:2px;margin:8px auto"><div id="ob-scan-bar" style="height:100%;background:var(--accent);border-radius:2px;width:0%;transition:width 0.5s"></div></div>
   </div>
-  <div style="margin-top:32px;padding:20px;background:var(--bg-alt);border:1px solid var(--border);border-radius:12px;text-align:center">
+  <div style="margin-top:32px;padding:22px;background:var(--bg-alt);border:1px solid var(--border);border-radius:12px;text-align:center">
     <div style="font-size:28px;margin-bottom:6px">💼</div>
-    <p style="font-weight:600;margin:0 0 6px;font-size:15px">Add to your Dock for one-click access</p>
-    <p class="muted" style="font-size:13px;margin:0 0 12px;line-height:1.5">Open Finder → <code style="background:var(--border);padding:2px 6px;border-radius:4px">GetTheJob.app</code> (in the project folder) → drag it to your Dock.<br>One click launches the dashboard and runs your morning batch automatically.</p>
-    <p class="muted" style="font-size:12px;margin:0;opacity:.7">Requires <a href="https://docs.anthropic.com/en/docs/claude-code" target="_blank" style="color:var(--accent)">Claude Code</a> for AI-powered triage.</p>
+    <p style="font-weight:600;margin:0 0 10px;font-size:15px">Open the dashboard in one click next time <span class="muted" style="font-weight:400;font-size:12px">— macOS</span></p>
+    <div class="muted" style="font-size:13px;margin:0 auto 12px;line-height:1.6;text-align:left;max-width:540px">
+      The project ships with a small launcher app called <code style="background:var(--border);padding:2px 6px;border-radius:4px">GetTheJob.app</code>. To pin it:
+      <ol style="margin:8px 0 0;padding-left:20px">
+        <li>Open the <strong>GetTheJob</strong> folder you cloned (the project folder on your computer).</li>
+        <li>Drag <code style="background:var(--border);padding:2px 6px;border-radius:4px">GetTheJob.app</code> onto your Dock.</li>
+      </ol>
+      <div style="margin-top:8px">A single click then starts the server and opens this dashboard — no terminal needed.</div>
+    </div>
+    <p class="muted" style="font-size:12px;margin:0;opacity:.85">Not on a Mac? Run <code style="background:var(--border);padding:2px 6px;border-radius:4px">npm start</code> in the project folder instead. AI scoring &amp; apply packs need <a href="https://docs.anthropic.com/en/docs/claude-code" target="_blank" style="color:var(--accent)">Claude Code</a>.</p>
   </div>
 </div>
 
@@ -1557,7 +1684,7 @@ async function runFirstScan(btn) {
         if (!sd.running) {
           clearInterval(poll);
           bar.style.width = '100%';
-          document.getElementById('ob-scan-status').innerHTML = 'Done! <a href="/triage" style="color:var(--accent);font-weight:600">View your results →</a>';
+          document.getElementById('ob-scan-status').innerHTML = 'Scan complete — new postings saved to your queue.<br><span style="font-size:12.5px;color:var(--muted)">Next, score them against your profile: open this project in <b>Claude Code</b> and run <code style="background:var(--border);padding:1px 5px;border-radius:4px">/get-the-job triage</code>. Scored jobs appear in your <a href="/triage" style="color:var(--accent);font-weight:600">Inbox</a>.</span>';
           btn.style.display = 'none';
         }
       } catch (e) { /* keep polling */ }
@@ -1579,17 +1706,22 @@ async function completeOnboarding(skipStory, btn) {
   const hasNarrative = !skipStory && (headline || exitStory || state.strengths.length > 0 || proofName);
 
   const buildDoneList = () => {
-    const hasCv = !skipCv && (!!document.getElementById('ob-cv')?.value?.trim() || !!state.uploadedFile);
+    const hasPasted = !skipCv && !!document.getElementById('ob-cv')?.value?.trim();
+    const pdfOnly = !skipCv && !hasPasted && !!state.uploadedFile;
+    const hasCv = hasPasted || pdfOnly;
     const list = document.getElementById('ob-done-list');
     const companyCount = state.companies.length;
     list.innerHTML = [
       { label: 'Profile (config/profile.yml)', ok: true },
+      { label: 'Scoring rules — comp floor, location, deal-breakers (modes/_profile.md)', ok: true },
       { label: 'Job preferences (portals.yml)', ok: true },
-      { label: companyCount ? companyCount + ' companies to scan (portals.yml)' : 'Companies to scan', ok: companyCount > 0, hint: 'add companies in portals.yml or re-run setup' },
-      { label: 'Resume (cv.md)', ok: hasCv },
+      { label: companyCount ? companyCount + (companyCount === 1 ? ' company' : ' companies') + ' to scan (portals.yml)' : 'Companies to scan', ok: companyCount > 0, hint: 'add companies in portals.yml or re-run setup' },
+      pdfOnly
+        ? { label: 'Resume (cv.pdf)', ok: true, note: 'Claude Code converts it to cv.md on first use' }
+        : { label: 'Resume (cv.md)', ok: hasCv },
       { label: 'Cover letter narrative', ok: hasNarrative },
     ].map(item =>
-      '<div class="ob-done-check"><span class="' + (item.ok ? 'ob-check' : 'ob-skip') + '">' + (item.ok ? '✓' : '⏭') + '</span> ' + item.label + (item.ok ? '' : ' <span class="muted">— ' + (item.hint || 'add later in config/profile.yml') + '</span>') + '</div>'
+      '<div class="ob-done-check"><span class="' + (item.ok ? 'ob-check' : 'ob-skip') + '">' + (item.ok ? '✓' : '⏭') + '</span> ' + item.label + (item.ok ? (item.note ? ' <span class="muted">— ' + item.note + '</span>' : '') : ' <span class="muted">— ' + (item.hint || 'add later in config/profile.yml') + '</span>') + '</div>'
     ).join('');
   };
 
@@ -1611,6 +1743,8 @@ async function completeOnboarding(skipStory, btn) {
     companies: state.companies,
     comp: document.getElementById('ob-comp').value.trim(),
     currency: document.getElementById('ob-currency').value,
+    workpref: document.getElementById('ob-workpref')?.value || 'hybrid',
+    avoid: (document.getElementById('ob-avoid')?.value || '').trim(),
     cv: skipCv ? '' : document.getElementById('ob-cv').value,
     headline: headline,
     exitStory: exitStory,
@@ -2530,10 +2664,146 @@ function getCounts() {
   return { inbox, pipeline };
 }
 
+// ----- Scoring guardrails (the user's hard exclusions in modes/_profile.md) -----
+// Match any "## …Deal-Breaker…" or "## …Guardrail…" heading, since hand-curated
+// profiles use variants (e.g. "## Your Deal-Breakers (auto-discourage; …)").
+const GUARD_HEADING_RE = /^##\s+.*(guardrail|deal-?breaker)/i;
+
+// A clean, canonical section — used only when creating the section from scratch.
+function canonicalGuardrailSection(clean) {
+  return '## Your Guardrails / Deal-Breakers\n\n'
+    + 'The triage scorer auto-skips (score 1.0, verdict `SKIP`) anything here. Edit freely.\n\n'
+    + (clean.length
+        ? clean.map(s => '- ' + s).join('\n') + '\n'
+        : 'You set none, so jobs are ranked purely on fit — nothing is force-excluded. Add industries, companies, or levels here to auto-skip them.\n')
+    + '\n**Seniority/experience:** the scorer compares each JD against your resume (`cv.md`) and penalizes large gaps — it does not use a fixed year threshold.\n';
+}
+
+// Read the deal-breaker bullets from the Guardrails section of modes/_profile.md.
+// Skips intro prose and italic placeholder bullets (_..._) from the template.
+function readGuardrails() {
+  const p = join(ROOT, 'modes', '_profile.md');
+  if (!existsSync(p)) return { exists: false, items: [] };
+  const lines = readFileSync(p, 'utf8').split('\n');
+  const hIdx = lines.findIndex(l => GUARD_HEADING_RE.test(l));
+  if (hIdx < 0) return { exists: true, items: [] };
+  const items = [];
+  for (let i = hIdx + 1; i < lines.length; i++) {
+    if (lines[i].startsWith('## ')) break;
+    const m = lines[i].match(/^\s*-\s+(.*)$/);
+    if (m) {
+      const item = m[1].trim();
+      if (item && !/^_.*_$/.test(item)) items.push(item);
+    }
+  }
+  return { exists: true, items };
+}
+
+// Save the edited items back into modes/_profile.md. Replaces just the bullet
+// block inside the existing Guardrails/Deal-Breakers section, preserving the
+// heading and any surrounding prose/notes. Creates the section/file if missing.
+function writeGuardrails(items) {
+  const dir = join(ROOT, 'modes');
+  mkdirSync(dir, { recursive: true });
+  const p = join(dir, '_profile.md');
+  const clean = (items || []).map(s => String(s).trim()).filter(Boolean);
+  const bullets = clean.map(s => '- ' + s);
+
+  let text = existsSync(p) ? readFileSync(p, 'utf8') : '';
+  if (!text.trim()) {
+    writeFileSync(p, '# User Profile Context — get-the-job\n\n' + canonicalGuardrailSection(clean) + '\n');
+    return clean.length;
+  }
+  const lines = text.split('\n');
+  const hIdx = lines.findIndex(l => GUARD_HEADING_RE.test(l));
+  if (hIdx < 0) {
+    writeFileSync(p, text.replace(/\s*$/, '') + '\n\n' + canonicalGuardrailSection(clean) + '\n');
+    return clean.length;
+  }
+  // Section runs from the heading to the next "## " heading (or EOF).
+  let end = lines.length;
+  for (let i = hIdx + 1; i < lines.length; i++) { if (lines[i].startsWith('## ')) { end = i; break; } }
+  // Find the contiguous block of bullet lines within the section.
+  let bStart = -1, bEnd = -1;
+  for (let i = hIdx + 1; i < end; i++) {
+    if (/^\s*-\s+/.test(lines[i])) { if (bStart < 0) bStart = i; bEnd = i; }
+    else if (bStart >= 0) break; // block ended (blank line or prose after bullets)
+  }
+  let out;
+  if (bStart >= 0) {
+    out = lines.slice(0, bStart).concat(bullets, lines.slice(bEnd + 1));
+  } else {
+    // No bullets yet in the section — insert after the heading.
+    out = lines.slice(0, hIdx + 1).concat('', bullets, lines.slice(hIdx + 1));
+  }
+  writeFileSync(p, out.join('\n'));
+  return clean.length;
+}
+
+// Inbox UI snippet: the "Scoring rules" toggle button + the editor panel.
+function guardrailsUI() {
+  return `<button class="btn-add-toggle" onclick="toggleGuardrails()">⚙&nbsp; Scoring rules</button>`;
+}
+function guardrailsPanel(open) {
+  return `<div id="guardrails-panel" class="rules-panel${open ? ' open' : ''}">
+  <div class="rules-head"><strong>Your hard exclusions</strong><span class="muted">Postings matching any line are auto-skipped (score 1.0) on the next scoring run. One rule per line — an industry, company, or level.</span></div>
+  <div id="guardrails-list"></div>
+  <div class="rules-actions">
+    <button type="button" class="btn-add-row" onclick="addGuardrailRow('', true)">+ Add exclusion</button>
+    <button type="button" class="btn-save" id="guardrails-save" onclick="saveGuardrails(this)">Save</button>
+    <span id="guardrails-msg" class="muted"></span>
+  </div>
+</div>`;
+}
+
+// Settings page: shows the user's current setup and lets them edit scoring rules
+// inline. Profile basics are changed by re-running the wizard or editing files.
+function renderSettings() {
+  let prof = {};
+  try {
+    const p = join(ROOT, 'config', 'profile.yml');
+    if (existsSync(p)) prof = yaml.load(readFileSync(p, 'utf8')) || {};
+  } catch { /* show what we can */ }
+  const cand = prof.candidate || {};
+  const roles = (prof.target_roles && prof.target_roles.primary) || [];
+  const comp = prof.compensation || {};
+  let companyCount = 0;
+  try {
+    const pp = join(ROOT, 'portals.yml');
+    if (existsSync(pp)) { const py = yaml.load(readFileSync(pp, 'utf8')) || {}; companyCount = (py.tracked_companies || []).length; }
+  } catch { /* ignore */ }
+
+  const row = (label, val) => val ? `<div class="set-row"><span class="set-k">${escapeHtml(label)}</span><span class="set-v">${escapeHtml(String(val))}</span></div>` : '';
+  const profileCard = `<div class="set-card">
+    <h3>Your profile</h3>
+    ${row('Name', cand.full_name)}
+    ${row('Email', cand.email)}
+    ${row('Location', cand.location)}
+    ${roles.length ? row('Target roles', roles.join(', ')) : ''}
+    ${comp.target_range ? row('Comp target', comp.target_range + (comp.currency ? ' ' + comp.currency : '')) : ''}
+    ${row('Companies tracked', companyCount)}
+    <div style="margin-top:14px"><a class="btn-set" href="/onboarding?edit=1">Re-run the setup wizard →</a> <span class="muted" style="font-size:12.5px">or edit <code>config/profile.yml</code>, <code>portals.yml</code>, <code>cv.md</code> directly</span></div>
+  </div>`;
+
+  const body = `
+<div class="toolbar"><div><h1>Settings</h1><div class="sub">Your setup. Scoring rules are editable here; change profile basics by re-running the wizard.</div></div></div>
+${profileCard}
+<h3 style="margin:22px 0 4px">Scoring rules — your hard exclusions</h3>
+<div class="muted" style="margin:0 0 12px;font-size:13px">These are read every time your postings are scored. Edit, add, or remove them below.</div>
+${guardrailsPanel(true)}
+<script>document.addEventListener('DOMContentLoaded', function(){ loadGuardrails(); });</script>
+`;
+  return shell('Settings', body, { ...getCounts() });
+}
+
 function renderInbox(query) {
   const path = join(ROOT, 'data', 'triage-scores.tsv');
   if (!existsSync(path)) {
-    return shell('Inbox', '<h1>Inbox</h1><div class="empty">No leads yet — run a scan to populate data/triage-scores.tsv.</div>', { view: 'inbox', ...getCounts() });
+    return shell('Inbox',
+      `<div class="toolbar"><div><h1>Inbox</h1></div><div class="tools">${guardrailsUI()}</div></div>
+${guardrailsPanel()}
+<div class="empty" style="line-height:1.6">No scored leads yet.<br>1. Find jobs — run a scan (<code>npm run scan</code> or the scan button).<br>2. Score them — open this project in <b>Claude Code</b> and run <code>/get-the-job triage</code>.<br>Scored postings show up here.<br><span style="font-size:12.5px">Tip: set your hard exclusions above first — they shape what gets auto-skipped.</span></div>`,
+      { view: 'inbox', ...getCounts() });
   }
   const text = readFileSync(path, 'utf8');
   const { header, rows: allRows } = parseTsv(text);
@@ -2733,7 +3003,9 @@ function runBatch(btn){
     <h1>Inbox</h1>
     <div class="sub">Open roles the scanner found and scored against your profile. Send the strong ones to your pipeline.</div>
   </div>
+  <div class="tools">${guardrailsUI()}</div>
 </div>
+${guardrailsPanel()}
 <div class="stats">
   <div class="stat"><b>${sorted.length}</b>leads</div>
   <div class="stat"><b>${strongCount}</b>strong (4.0+)</div>
@@ -2925,6 +3197,15 @@ const server = createServer(async (req, res) => {
     const pathname = url.split('?')[0];
     const query = parseQuery(url);
 
+    // Dev ephemeral mode: reset the sandbox only when the ONBOARDING page is
+    // (re)loaded, so refreshing the wizard gives a clean run — but completing it
+    // and going to the dashboard ('/') still works. No-op unless EPHEMERAL=1 +
+    // sandbox ROOT. (Wiping on '/' too would delete the just-created profile and
+    // bounce you back to the start of onboarding.)
+    if (EPHEMERAL && pathname === '/onboarding') {
+      wipeEphemeralData();
+    }
+
     // First-run: redirect to onboarding if profile.yml doesn't exist
     const profileExists = existsSync(join(ROOT, 'config', 'profile.yml'));
     if (!profileExists && (pathname === '/' || pathname === '/index.html' || pathname === '/triage')) {
@@ -2933,11 +3214,18 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (pathname === '/settings') {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(renderSettings());
+      return;
+    }
+
     if (pathname === '/onboarding') {
       const isPreview = query.preview === '1';
+      const isEdit = query.edit === '1'; // re-run the wizard for real (saves), bypassing the "already set up" redirect
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      if (profileExists && !isPreview) {
-        res.end(shell('Setup', '<h1>Already Set Up</h1><p>Your profile is configured. <a href="/?view=inbox">Go to your dashboard</a>.</p><p class="muted">To reconfigure, delete <code>config/profile.yml</code> and reload this page.</p>'));
+      if (profileExists && !isPreview && !isEdit) {
+        res.end(shell('Setup', '<h1>Already Set Up</h1><p>Your profile is configured. <a href="/?view=inbox">Go to your dashboard</a> or <a href="/settings">open Settings</a>.</p>'));
       } else {
         res.end(renderOnboarding(isPreview));
       }
@@ -2984,7 +3272,7 @@ const server = createServer(async (req, res) => {
           payload = await readOnboardingBody(req);
         }
 
-        const { name, email, location, linkedin, industries, roles, companies, comp, currency, cv } = payload;
+        const { name, email, location, linkedin, industries, roles, companies, comp, currency, cv, workpref, avoid } = payload;
 
         mkdirSync(join(ROOT, 'config'), { recursive: true });
         mkdirSync(join(ROOT, 'data'), { recursive: true });
@@ -3056,12 +3344,72 @@ const server = createServer(async (req, res) => {
         portalsYml += '\nsearch_queries: []\n';
         writeFileSync(join(ROOT, 'portals.yml'), portalsYml);
 
-        if (cv) {
-          writeFileSync(join(ROOT, 'cv.md'), cv);
-        }
         if (pdfBuf) {
           writeFileSync(join(ROOT, 'cv.pdf'), pdfBuf);
         }
+        if (cv) {
+          writeFileSync(join(ROOT, 'cv.md'), cv);
+        } else if (pdfBuf) {
+          // PDF uploaded without pasted markdown. The AI reads cv.md, so leave a
+          // stub that tells Claude Code to convert the PDF on first use — keeps
+          // the data contract intact and makes the next step explicit.
+          writeFileSync(join(ROOT, 'cv.md'),
+            '<!-- Your resume was uploaded as cv.pdf but not yet converted to Markdown.\n' +
+            '     Before scoring jobs, open this project in Claude Code and ask it:\n' +
+            '     "convert cv.pdf into cv.md". The AI reads cv.md (not the PDF). -->\n');
+        }
+
+        // Generate modes/_profile.md — the user's scoring guardrails + target
+        // roles that triage/_shared read at runtime. Without this, scoring would
+        // fall back to template defaults. Non-fatal if it fails.
+        try {
+          mkdirSync(join(ROOT, 'modes'), { recursive: true });
+          const roleList = (roles || []).filter(Boolean);
+          const cur = currency || 'USD';
+          // Comp floor = low end of the entered range.
+          const compFloor = (() => {
+            const toks = String(comp || '').match(/\d[\d,.]*\s*[kKmM]?/g);
+            if (!toks || !toks.length) return '';
+            const val = s => { let n = parseFloat(s.replace(/[, ]/g, '')); if (/[kK]/.test(s)) n *= 1e3; if (/[mM]/.test(s)) n *= 1e6; return n; };
+            return toks.slice().sort((a, b) => val(a) - val(b))[0].trim();
+          })();
+          const floorDisplay = compFloor ? (cur + ' ' + compFloor).trim() : '';
+          const wp = workpref || 'hybrid';
+          const locPolicy = wp === 'remote'
+            ? 'Remote only. Fully remote = 5.0. On-site or office-required hybrid scored ≤2.0 unless exceptional.'
+            : wp === 'onsite'
+              ? 'Open to on-site and relocation' + (location ? ' (based in ' + location + ')' : '') + '. Location is not a strong filter; score on fit.'
+              : 'Remote preferred. Hybrid near ' + (location || 'your area') + ' is fine. On-site far from there is scored down, not excluded.';
+          const avoidItems = String(avoid || '').split(/\s*,\s*/).map(s => s.trim()).filter(Boolean);
+          const dealBreakers = [];
+          if (floorDisplay) dealBreakers.push('Comp known to be below your floor (' + floorDisplay + ').');
+          if (wp === 'remote') dealBreakers.push('Roles requiring regular on-site presence (you chose Remote only).');
+          avoidItems.forEach(a => dealBreakers.push(a));
+
+          let pm = '# User Profile Context — get-the-job' + (name ? ' (' + name + ')' : '') + '\n\n';
+          pm += '<!-- Generated by the onboarding wizard. This file is yours — edit it freely.\n';
+          pm += '     The system reads _shared.md first, then this file (your overrides win). -->\n\n';
+          pm += '## Your Target Roles\n\nThe roles you are optimizing for. The scorer rewards strong matches and penalizes roles far outside this set.\n\n';
+          if (roleList.length) roleList.forEach(r => { pm += '- ' + r + '\n'; });
+          else pm += '- _Add your target roles here._\n';
+          pm += '\n## Your Comp Targets\n\n';
+          pm += comp ? ('- **Target range:** ' + comp + ' ' + cur + '\n') : '- **Target range:** _not set_\n';
+          if (floorDisplay) pm += '- **Floor (walk-away):** ' + floorDisplay + ' — score roles known to pay below this ≤2.5 and flag the gap.\n';
+          pm += '- Validate specific companies with WebSearch (Levels.fyi, Glassdoor, Blind) when comp is not in the JD.\n';
+          pm += '\n## Your Location Policy\n\n';
+          if (location) pm += '- **Based in:** ' + location + '\n';
+          pm += '- ' + locPolicy + '\n';
+          pm += '\n## Your Guardrails / Deal-Breakers\n\nThe triage scorer auto-skips (score 1.0, verdict `SKIP`) anything here. ';
+          if (dealBreakers.length) {
+            pm += 'Edit freely.\n\n';
+            dealBreakers.forEach(d => { pm += '- ' + d + '\n'; });
+          } else {
+            pm += 'You set none, so jobs are ranked purely on fit — nothing is force-excluded. Add industries, companies, or levels here to auto-skip them.\n';
+          }
+          pm += '\n**Seniority/experience:** the scorer compares each JD against your resume (`cv.md`) and penalizes large gaps — it does not use a fixed year threshold.\n';
+          pm += '\n_Everything else (cover-letter voice, negotiation, framing) uses the generic defaults in `_shared.md` until you customize it here._\n';
+          writeFileSync(join(ROOT, 'modes', '_profile.md'), pm);
+        } catch (e) { /* non-fatal: _profile.md generation must not block setup */ }
 
         if (!existsSync(join(ROOT, 'data', 'applications.md'))) {
           writeFileSync(join(ROOT, 'data', 'applications.md'),
@@ -3096,6 +3444,19 @@ const server = createServer(async (req, res) => {
       } catch (e) {
         return sendJson(res, 500, { ok: false, error: e.message });
       }
+    }
+
+    if (pathname === '/api/guardrails' && req.method === 'GET') {
+      try { return sendJson(res, 200, readGuardrails()); }
+      catch (e) { return sendJson(res, 500, { ok: false, error: e.message }); }
+    }
+    if (pathname === '/api/guardrails' && req.method === 'POST') {
+      try {
+        const body = await readOnboardingBody(req);
+        const items = Array.isArray(body.items) ? body.items : [];
+        const count = writeGuardrails(items);
+        return sendJson(res, 200, { ok: true, count });
+      } catch (e) { return sendJson(res, 500, { ok: false, error: e.message }); }
     }
 
     // ----- Scan API -----

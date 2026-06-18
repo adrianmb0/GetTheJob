@@ -1,6 +1,6 @@
 # Mode: skip — Mark a Posting Skipped
 
-Removes a triaged posting from the apply queue without applying. Used when Adrian decides a posting isn't worth pursuing despite its triage score.
+Removes a triaged posting from the apply queue without applying. Used when the user decides a posting isn't worth pursuing despite its triage score.
 
 ## Inputs
 
@@ -41,7 +41,7 @@ Search `data/triage-scores.tsv` for the URL. Also check `data/applications.md` (
 
 ### Step 4 — Optional reason
 
-If the user provided a reason (e.g. `/get-the-job skip <url> reason="comp too low"`), append it to the notes/log so future patterns analysis can see why postings get rejected. If not, no reason is required — Adrian doesn't owe the system an explanation.
+If the user provided a reason (e.g. `/get-the-job skip <url> reason="comp too low"`), append it to the notes/log so future patterns analysis can see why postings get rejected. If not, no reason is required — the user doesn't owe the system an explanation.
 
 ### Step 5 — Confirm
 
