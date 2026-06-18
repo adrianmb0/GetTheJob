@@ -619,8 +619,10 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .rg-badge.hard { background: rgba(180,65,60,.13); color: #b4413c; }
 .rg-badge.soft { background: rgba(201,154,46,.18); color: #946f16; }
 .rule-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: flex-start; }
-.rule-row input, .rule-row textarea { flex: 1; padding: 9px 12px; border: 1px solid var(--border); border-radius: 9px; font-size: 13.5px; font-family: inherit; line-height: 1.45; background: var(--canvas); color: var(--ink); }
-.rule-row textarea { resize: none; overflow: hidden; min-height: 38px; }
+.rule-row input, .rule-row textarea { flex: 1; padding: 10px 12px 10px 13px; border: 1px solid var(--border); border-left-width: 3px; border-radius: 9px; font-size: 13.5px; font-family: inherit; line-height: 1.5; background: var(--canvas); color: var(--ink); }
+.rule-row textarea { resize: none; overflow: hidden; min-height: 40px; }
+#guard-hard .rule-row textarea { border-left-color: #d08b86; }
+#guard-soft .rule-row textarea { border-left-color: #d6b873; }
 .rule-row input:focus, .rule-row textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
 .rule-del { flex: 0 0 auto; width: 36px; height: 38px; border: 1px solid var(--border); background: transparent; border-radius: 9px; cursor: pointer; color: var(--muted); font-size: 17px; line-height: 1; }
 .rule-del:hover { border-color: #b4413c; color: #b4413c; }
@@ -2686,6 +2688,20 @@ const GUARD_HEADING_RE = /^##\s+.*(guardrail|deal-?breaker)/i;
 const RULES_START = '<!-- gtj:rules:start -->';
 const RULES_END = '<!-- gtj:rules:end -->';
 
+// Strip markdown emphasis/backticks so rules read as clean prose in the editor.
+function cleanRuleText(s) {
+  return String(s).replace(/\*\*/g, '').replace(/__/g, '').replace(/`/g, '').replace(/\s+/g, ' ').trim();
+}
+
+// Guess whether a legacy flat rule is hard (exclude) or soft (weight down) from
+// its wording. Only used to seed the split the first time; the user can re-sort.
+function classifyRule(text) {
+  const t = text.toLowerCase();
+  const hardSig = /\bhard no\b|auto-?skip|\bexclude\b|out of range|\bnever\b|hard exclusion|\bskip\b/.test(t);
+  const softSig = /\bflag\b|discourage|penal|weigh|lower the score|score down|not a deal-?breaker|\bprefer\b|≤|\bsoft\b/.test(t);
+  return (softSig && !hardSig) ? 'soft' : 'hard';
+}
+
 function parseHardSoft(block) {
   const hard = [], soft = [];
   let cur = null;
@@ -2693,7 +2709,7 @@ function parseHardSoft(block) {
     if (/^###\s+.*hard/i.test(l)) { cur = hard; continue; }
     if (/^###\s+.*soft/i.test(l)) { cur = soft; continue; }
     const m = l.match(/^\s*-\s+(.*)$/);
-    if (m && cur) { const it = m[1].trim(); if (it && !/^_.*_$/.test(it)) cur.push(it); }
+    if (m && cur) { const it = m[1].trim(); if (it && !/^_.*_$/.test(it)) cur.push(cleanRuleText(it)); }
   }
   return { hard, soft };
 }
@@ -2721,9 +2737,19 @@ function readGuardrails() {
   for (let i = hIdx + 1; i < lines.length; i++) { if (lines[i].startsWith('## ')) { secEnd = i; break; } }
   const section = lines.slice(hIdx, secEnd).join('\n');
   if (/###\s+.*(hard|soft)/i.test(section)) return { exists: true, ...parseHardSoft(section) };
-  const hard = [];
-  for (let i = hIdx + 1; i < secEnd; i++) { const m = lines[i].match(/^\s*-\s+(.*)$/); if (m) { const it = m[1].trim(); if (it && !/^_.*_$/.test(it)) hard.push(it); } }
-  return { exists: true, hard, soft: [] };
+  // Legacy flat list: clean each rule and auto-split hard vs soft by its wording.
+  const hard = [], soft = [];
+  for (let i = hIdx + 1; i < secEnd; i++) {
+    const m = lines[i].match(/^\s*-\s+(.*)$/);
+    if (m) {
+      const raw = m[1].trim();
+      if (raw && !/^_.*_$/.test(raw)) {
+        const it = cleanRuleText(raw);
+        (classifyRule(it) === 'soft' ? soft : hard).push(it);
+      }
+    }
+  }
+  return { exists: true, hard, soft };
 }
 
 // Writes the marked region into the guardrail section, preserving the heading and
