@@ -100,3 +100,19 @@ If you have a live demo/dashboard (check profile.yml), offer access in applicati
 **In evaluations (scoring):**
 - Remote dimension for hybrid outside your country: score **3.0** (not 1.0)
 - Only score 1.0 if JD says "must be on-site 4-5 days/week, no exceptions"
+
+## Your Guardrails / Deal-Breakers
+
+<!-- The triage scorer reads this section. Anything here is auto-SKIP'd (score
+     1.0). Leave it empty to rank purely on fit — nothing is force-excluded
+     unless YOU list it. Examples below; replace with your own. -->
+
+- Comp known to be below your floor (see Your Comp Targets above)
+- Work styles you ruled out (see Your Location Policy above)
+- _Add industries to avoid, e.g. "Crypto / web3", "Gambling", "Defense"_
+- _Add companies to avoid, e.g. your current employer and its subsidiaries_
+- _Add role levels out of range, e.g. "Intern / Junior", "Director+ / VP"_
+
+If a deal-breaker fires, score ≤1.0 with verdict `SKIP` and note the reason.
+**Seniority/experience:** don't hard-exclude on a fixed year count — compare the
+JD's required level against your resume (`cv.md`) and penalize large gaps.

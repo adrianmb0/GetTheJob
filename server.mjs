@@ -20,7 +20,7 @@ const ROOT = process.env.DATA_DIR ? resolve(process.env.DATA_DIR) : SRC_DIR;
 const EPHEMERAL = process.env.EPHEMERAL === '1' && ROOT !== SRC_DIR;
 function wipeEphemeralData() {
   if (!EPHEMERAL || ROOT === SRC_DIR) return;
-  for (const f of ['config/profile.yml', 'portals.yml', 'cv.md', 'cv.pdf',
+  for (const f of ['config/profile.yml', 'portals.yml', 'cv.md', 'cv.pdf', 'modes/_profile.md',
                    'data/applications.md', 'data/pipeline.md', 'data/triage-scores.tsv', 'data/scan-history.tsv']) {
     try { rmSync(join(ROOT, f), { force: true }); } catch { /* ignore */ }
   }
@@ -1167,10 +1167,24 @@ ${CSS}
   </div>
 
   <div class="ob-section-title" style="margin-top:28px">Compensation Target <span style="font-weight:400;color:var(--muted)">(optional)</span></div>
+  <div class="ob-hint" style="font-size:12px;color:var(--muted);margin-bottom:6px">The low end becomes your floor — roles known to pay below it get flagged and scored down.</div>
   <div class="ob-comp-row">
     <div class="ob-field" style="margin:0"><input type="text" id="ob-comp" placeholder="$120K-180K"></div>
     <div class="ob-field" style="margin:0">
       <select id="ob-currency"><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option><option value="CHF">CHF</option><option value="CAD">CAD</option><option value="AUD">AUD</option><option value="Other">Other</option></select>
+    </div>
+  </div>
+
+  <div class="ob-row" style="margin-top:24px">
+    <div class="ob-field" style="margin:0">
+      <label>Work preference</label>
+      <div class="ob-hint">Shapes how location fit is scored.</div>
+      <select id="ob-workpref"><option value="remote">Remote only</option><option value="hybrid" selected>Remote or hybrid near me</option><option value="onsite">Open to on-site / relocation</option></select>
+    </div>
+    <div class="ob-field" style="margin:0">
+      <label>Rule anything out? <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+      <div class="ob-hint">Industries, companies, or levels to auto-skip. Comma-separated.</div>
+      <input type="text" id="ob-avoid" placeholder="Crypto, my current employer, Director+" autocomplete="off">
     </div>
   </div>
 
@@ -1630,8 +1644,9 @@ async function completeOnboarding(skipStory, btn) {
     const companyCount = state.companies.length;
     list.innerHTML = [
       { label: 'Profile (config/profile.yml)', ok: true },
+      { label: 'Scoring rules — comp floor, location, deal-breakers (modes/_profile.md)', ok: true },
       { label: 'Job preferences (portals.yml)', ok: true },
-      { label: companyCount ? companyCount + ' companies to scan (portals.yml)' : 'Companies to scan', ok: companyCount > 0, hint: 'add companies in portals.yml or re-run setup' },
+      { label: companyCount ? companyCount + (companyCount === 1 ? ' company' : ' companies') + ' to scan (portals.yml)' : 'Companies to scan', ok: companyCount > 0, hint: 'add companies in portals.yml or re-run setup' },
       pdfOnly
         ? { label: 'Resume (cv.pdf)', ok: true, note: 'Claude Code converts it to cv.md on first use' }
         : { label: 'Resume (cv.md)', ok: hasCv },
@@ -1659,6 +1674,8 @@ async function completeOnboarding(skipStory, btn) {
     companies: state.companies,
     comp: document.getElementById('ob-comp').value.trim(),
     currency: document.getElementById('ob-currency').value,
+    workpref: document.getElementById('ob-workpref')?.value || 'hybrid',
+    avoid: (document.getElementById('ob-avoid')?.value || '').trim(),
     cv: skipCv ? '' : document.getElementById('ob-cv').value,
     headline: headline,
     exitStory: exitStory,
@@ -3038,7 +3055,7 @@ const server = createServer(async (req, res) => {
           payload = await readOnboardingBody(req);
         }
 
-        const { name, email, location, linkedin, industries, roles, companies, comp, currency, cv } = payload;
+        const { name, email, location, linkedin, industries, roles, companies, comp, currency, cv, workpref, avoid } = payload;
 
         mkdirSync(join(ROOT, 'config'), { recursive: true });
         mkdirSync(join(ROOT, 'data'), { recursive: true });
@@ -3124,6 +3141,58 @@ const server = createServer(async (req, res) => {
             '     Before scoring jobs, open this project in Claude Code and ask it:\n' +
             '     "convert cv.pdf into cv.md". The AI reads cv.md (not the PDF). -->\n');
         }
+
+        // Generate modes/_profile.md — the user's scoring guardrails + target
+        // roles that triage/_shared read at runtime. Without this, scoring would
+        // fall back to template defaults. Non-fatal if it fails.
+        try {
+          mkdirSync(join(ROOT, 'modes'), { recursive: true });
+          const roleList = (roles || []).filter(Boolean);
+          const cur = currency || 'USD';
+          // Comp floor = low end of the entered range.
+          const compFloor = (() => {
+            const toks = String(comp || '').match(/\d[\d,.]*\s*[kKmM]?/g);
+            if (!toks || !toks.length) return '';
+            const val = s => { let n = parseFloat(s.replace(/[, ]/g, '')); if (/[kK]/.test(s)) n *= 1e3; if (/[mM]/.test(s)) n *= 1e6; return n; };
+            return toks.slice().sort((a, b) => val(a) - val(b))[0].trim();
+          })();
+          const floorDisplay = compFloor ? (cur + ' ' + compFloor).trim() : '';
+          const wp = workpref || 'hybrid';
+          const locPolicy = wp === 'remote'
+            ? 'Remote only. Fully remote = 5.0. On-site or office-required hybrid scored ≤2.0 unless exceptional.'
+            : wp === 'onsite'
+              ? 'Open to on-site and relocation' + (location ? ' (based in ' + location + ')' : '') + '. Location is not a strong filter; score on fit.'
+              : 'Remote preferred. Hybrid near ' + (location || 'your area') + ' is fine. On-site far from there is scored down, not excluded.';
+          const avoidItems = String(avoid || '').split(/\s*,\s*/).map(s => s.trim()).filter(Boolean);
+          const dealBreakers = [];
+          if (floorDisplay) dealBreakers.push('Comp known to be below your floor (' + floorDisplay + ').');
+          if (wp === 'remote') dealBreakers.push('Roles requiring regular on-site presence (you chose Remote only).');
+          avoidItems.forEach(a => dealBreakers.push(a));
+
+          let pm = '# User Profile Context — get-the-job' + (name ? ' (' + name + ')' : '') + '\n\n';
+          pm += '<!-- Generated by the onboarding wizard. This file is yours — edit it freely.\n';
+          pm += '     The system reads _shared.md first, then this file (your overrides win). -->\n\n';
+          pm += '## Your Target Roles\n\nThe roles you are optimizing for. The scorer rewards strong matches and penalizes roles far outside this set.\n\n';
+          if (roleList.length) roleList.forEach(r => { pm += '- ' + r + '\n'; });
+          else pm += '- _Add your target roles here._\n';
+          pm += '\n## Your Comp Targets\n\n';
+          pm += comp ? ('- **Target range:** ' + comp + ' ' + cur + '\n') : '- **Target range:** _not set_\n';
+          if (floorDisplay) pm += '- **Floor (walk-away):** ' + floorDisplay + ' — score roles known to pay below this ≤2.5 and flag the gap.\n';
+          pm += '- Validate specific companies with WebSearch (Levels.fyi, Glassdoor, Blind) when comp is not in the JD.\n';
+          pm += '\n## Your Location Policy\n\n';
+          if (location) pm += '- **Based in:** ' + location + '\n';
+          pm += '- ' + locPolicy + '\n';
+          pm += '\n## Your Guardrails / Deal-Breakers\n\nThe triage scorer auto-skips (score 1.0, verdict `SKIP`) anything here. ';
+          if (dealBreakers.length) {
+            pm += 'Edit freely.\n\n';
+            dealBreakers.forEach(d => { pm += '- ' + d + '\n'; });
+          } else {
+            pm += 'You set none, so jobs are ranked purely on fit — nothing is force-excluded. Add industries, companies, or levels here to auto-skip them.\n';
+          }
+          pm += '\n**Seniority/experience:** the scorer compares each JD against your resume (`cv.md`) and penalizes large gaps — it does not use a fixed year threshold.\n';
+          pm += '\n_Everything else (cover-letter voice, negotiation, framing) uses the generic defaults in `_shared.md` until you customize it here._\n';
+          writeFileSync(join(ROOT, 'modes', '_profile.md'), pm);
+        } catch (e) { /* non-fatal: _profile.md generation must not block setup */ }
 
         if (!existsSync(join(ROOT, 'data', 'applications.md'))) {
           writeFileSync(join(ROOT, 'data', 'applications.md'),

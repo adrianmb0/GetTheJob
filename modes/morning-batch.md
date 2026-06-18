@@ -1,8 +1,8 @@
 # Mode: morning-batch — Manual Tue/Fri Morning Pipeline
 
-Adrian runs this manually Tue + Fri mornings when he wakes up. Orchestrates scan + triage + (optional) email so by the time he's ready to apply (~8 AM), the queue is fresh and ranked.
+The user runs this manually on their chosen mornings (e.g. Tue + Fri). Orchestrates scan + triage + (optional) email so by the time they're ready to apply, the queue is fresh and ranked.
 
-**Architecture choice:** Everything happens inside this active Claude Code session. No bash scripts. No `claude -p` headless. No launchd cron. Adrian invoked it manually; he can walk away while it runs and come back when it's done.
+**Architecture choice:** Everything happens inside this active Claude Code session. No bash scripts. No `claude -p` headless. No launchd cron. The user invokes it manually; they can walk away while it runs and come back when it's done.
 
 ## Workflow
 
@@ -215,4 +215,4 @@ To remove from queue without applying:
 - **Fri 7:00 AM PT** — catches Tue/Wed/Thu postings
 - **Ad hoc** — anytime user wants a fresh queue check
 
-Adrian runs this manually. There is no cron, scheduler, or background process.
+The user runs this manually. There is no cron, scheduler, or background process.
