@@ -103,16 +103,22 @@ If you have a live demo/dashboard (check profile.yml), offer access in applicati
 
 ## Your Guardrails / Deal-Breakers
 
-<!-- The triage scorer reads this section. Anything here is auto-SKIP'd (score
-     1.0). Leave it empty to rank purely on fit — nothing is force-excluded
-     unless YOU list it. Examples below; replace with your own. -->
+<!-- The triage scorer reads two lists below. HARD = drop the posting (score 1.0).
+     SOFT = keep it, just lower its score. Edit them here or in the dashboard
+     (Inbox/Settings → Scoring rules). The gtj:rules markers let the dashboard
+     edit this region safely; leave them in place. -->
 
-- Comp known to be below your floor (see Your Comp Targets above)
-- Work styles you ruled out (see Your Location Policy above)
-- _Add industries to avoid, e.g. "Crypto / web3", "Gambling", "Defense"_
-- _Add companies to avoid, e.g. your current employer and its subsidiaries_
-- _Add role levels out of range, e.g. "Intern / Junior", "Director+ / VP"_
+<!-- gtj:rules:start -->
 
-If a deal-breaker fires, score ≤1.0 with verdict `SKIP` and note the reason.
+### Hard exclusions — auto-skip (score 1.0, never shown as a match)
+
+- _Add industries, companies, or levels to exclude, e.g. "Crypto / web3", your current employer, "Intern / Junior"_
+
+### Soft penalties — lower the score, but the posting still appears
+
+- _Add things that should weigh a role down without dropping it, e.g. "comp below my floor", "on-site far from me"_
+
+<!-- gtj:rules:end -->
+
 **Seniority/experience:** don't hard-exclude on a fixed year count — compare the
 JD's required level against your resume (`cv.md`) and penalize large gaps.
