@@ -2838,7 +2838,7 @@ function renderSettings() {
     ${row('Email', cand.email)}
     ${row('Location', cand.location)}
     ${roles.length ? row('Target roles', roles.join(', ')) : ''}
-    ${comp.target_range ? row('Comp target', comp.target_range + (comp.currency ? ' ' + comp.currency : '')) : ''}
+    ${comp.target_range ? row('Comp target', comp.target_range + (comp.currency && !new RegExp('\\b' + String(comp.currency).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(comp.target_range) ? ' ' + comp.currency : '')) : ''}
     ${row('Companies tracked', companyCount)}
     <div style="margin-top:14px"><a class="btn-set" href="/onboarding?edit=1">Re-run the setup wizard →</a> <span class="muted" style="font-size:12.5px">or edit <code>config/profile.yml</code>, <code>portals.yml</code>, <code>cv.md</code> directly</span></div>
   </div>`;
