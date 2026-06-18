@@ -8,6 +8,7 @@ import { readFileSync, writeFileSync, existsSync, statSync, copyFileSync, rename
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
+import yaml from 'js-yaml';
 
 const PORT = process.env.PORT || 3737;
 const SRC_DIR = resolve(fileURLToPath(import.meta.url), '..');
@@ -623,6 +624,14 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .btn-save:hover { opacity: .9; }
 .btn-save:disabled { opacity: .5; cursor: default; }
 .rules-actions .muted { font-size: 12.5px; }
+.set-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; margin: 0 0 8px; }
+.set-card h3 { margin: 0 0 12px; font-size: 15px; }
+.set-row { display: flex; gap: 16px; padding: 7px 0; border-bottom: 1px solid var(--hairline); font-size: 13.5px; }
+.set-row:last-of-type { border-bottom: none; }
+.set-k { flex: 0 0 150px; color: var(--muted); }
+.set-v { flex: 1; color: var(--ink); }
+.btn-set { display: inline-block; background: var(--accent); color: #fff; text-decoration: none; border-radius: 9px; padding: 8px 16px; font-size: 13px; font-weight: 600; }
+.btn-set:hover { opacity: .9; }
 .row-deleting { opacity: 0; transition: opacity 0.2s; }
 
 /* ----- batch banner ----- */
@@ -959,7 +968,7 @@ function shell(title, bodyHtml, nav = {}) {
     <div class="menu">
       <button class="icon-btn" title="More" aria-label="More" onclick="toggleMenu(event, this)">⋯</button>
       <div class="menu-pop">
-        <a href="/onboarding?preview=1">⚙&nbsp; Settings</a>
+        <a href="/settings">⚙&nbsp; Settings</a>
         <div class="sep"></div>
         <button class="danger" onclick="quitServer()">⎋&nbsp; Quit GetTheJob</button>
       </div>
@@ -2718,8 +2727,8 @@ function writeGuardrails(items) {
 function guardrailsUI() {
   return `<button class="btn-add-toggle" onclick="toggleGuardrails()">⚙&nbsp; Scoring rules</button>`;
 }
-function guardrailsPanel() {
-  return `<div id="guardrails-panel" class="rules-panel">
+function guardrailsPanel(open) {
+  return `<div id="guardrails-panel" class="rules-panel${open ? ' open' : ''}">
   <div class="rules-head"><strong>Your hard exclusions</strong><span class="muted">Postings matching any line are auto-skipped (score 1.0) on the next scoring run. One rule per line — an industry, company, or level.</span></div>
   <div id="guardrails-list"></div>
   <div class="rules-actions">
@@ -2728,6 +2737,46 @@ function guardrailsPanel() {
     <span id="guardrails-msg" class="muted"></span>
   </div>
 </div>`;
+}
+
+// Settings page: shows the user's current setup and lets them edit scoring rules
+// inline. Profile basics are changed by re-running the wizard or editing files.
+function renderSettings() {
+  let prof = {};
+  try {
+    const p = join(ROOT, 'config', 'profile.yml');
+    if (existsSync(p)) prof = yaml.load(readFileSync(p, 'utf8')) || {};
+  } catch { /* show what we can */ }
+  const cand = prof.candidate || {};
+  const roles = (prof.target_roles && prof.target_roles.primary) || [];
+  const comp = prof.compensation || {};
+  let companyCount = 0;
+  try {
+    const pp = join(ROOT, 'portals.yml');
+    if (existsSync(pp)) { const py = yaml.load(readFileSync(pp, 'utf8')) || {}; companyCount = (py.tracked_companies || []).length; }
+  } catch { /* ignore */ }
+
+  const row = (label, val) => val ? `<div class="set-row"><span class="set-k">${escapeHtml(label)}</span><span class="set-v">${escapeHtml(String(val))}</span></div>` : '';
+  const profileCard = `<div class="set-card">
+    <h3>Your profile</h3>
+    ${row('Name', cand.full_name)}
+    ${row('Email', cand.email)}
+    ${row('Location', cand.location)}
+    ${roles.length ? row('Target roles', roles.join(', ')) : ''}
+    ${comp.target_range ? row('Comp target', comp.target_range + (comp.currency ? ' ' + comp.currency : '')) : ''}
+    ${row('Companies tracked', companyCount)}
+    <div style="margin-top:14px"><a class="btn-set" href="/onboarding?edit=1">Re-run the setup wizard →</a> <span class="muted" style="font-size:12.5px">or edit <code>config/profile.yml</code>, <code>portals.yml</code>, <code>cv.md</code> directly</span></div>
+  </div>`;
+
+  const body = `
+<div class="toolbar"><div><h1>Settings</h1><div class="sub">Your setup. Scoring rules are editable here; change profile basics by re-running the wizard.</div></div></div>
+${profileCard}
+<h3 style="margin:22px 0 4px">Scoring rules — your hard exclusions</h3>
+<div class="muted" style="margin:0 0 12px;font-size:13px">These are read every time your postings are scored. Edit, add, or remove them below.</div>
+${guardrailsPanel(true)}
+<script>document.addEventListener('DOMContentLoaded', function(){ loadGuardrails(); });</script>
+`;
+  return shell('Settings', body, { ...getCounts() });
 }
 
 function renderInbox(query) {
@@ -3148,11 +3197,18 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (pathname === '/settings') {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(renderSettings());
+      return;
+    }
+
     if (pathname === '/onboarding') {
       const isPreview = query.preview === '1';
+      const isEdit = query.edit === '1'; // re-run the wizard for real (saves), bypassing the "already set up" redirect
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      if (profileExists && !isPreview) {
-        res.end(shell('Setup', '<h1>Already Set Up</h1><p>Your profile is configured. <a href="/?view=inbox">Go to your dashboard</a>.</p><p class="muted">To reconfigure, delete <code>config/profile.yml</code> and reload this page.</p>'));
+      if (profileExists && !isPreview && !isEdit) {
+        res.end(shell('Setup', '<h1>Already Set Up</h1><p>Your profile is configured. <a href="/?view=inbox">Go to your dashboard</a> or <a href="/settings">open Settings</a>.</p>'));
       } else {
         res.end(renderOnboarding(isPreview));
       }
