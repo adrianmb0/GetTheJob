@@ -10,7 +10,13 @@ set -euo pipefail
 
 # Resolve the repo root from this script's own location (scripts/ → repo root).
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RECIPIENT="adrian.mb97@gmail.com"
+# Recipient = the candidate's own email from config/profile.yml (override with
+# GTJ_EMAIL). Never hardcode a personal address here — this ships to other users.
+RECIPIENT="${GTJ_EMAIL:-$(grep -m1 -E '^[[:space:]]*email:' "$REPO/config/profile.yml" 2>/dev/null | sed -E 's/^[[:space:]]*email:[[:space:]]*//; s/^["'"'"']//; s/["'"'"']$//')}"
+if [ -z "${RECIPIENT:-}" ]; then
+  echo "No recipient email found. Set candidate.email in config/profile.yml (or export GTJ_EMAIL). Skipping email." >&2
+  exit 0
+fi
 THRESHOLD="4.0"
 APPLICATIONS="$REPO/data/applications.md"
 TRIAGE="$REPO/data/triage-scores.tsv"

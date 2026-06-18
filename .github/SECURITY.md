@@ -4,14 +4,14 @@
 
 **Do NOT open a public issue for security vulnerabilities.**
 
-Instead, please email **adrian.mb97@gmail.com** with:
+Instead, please report it privately through GitHub's [private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability): go to the repository's **Security** tab → **Report a vulnerability**. Include:
 
 1. Description of the vulnerability
 2. Steps to reproduce
 3. Potential impact
 4. Suggested fix (if any)
 
-You will receive a response within 72 hours. We will work with you to understand and address the issue before any public disclosure.
+The maintainers will work with you to understand and address the issue before any public disclosure.
 
 ## Scope
 
