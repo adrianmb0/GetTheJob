@@ -5,7 +5,7 @@
 
 import { createServer } from 'node:http';
 import { readFileSync, writeFileSync, existsSync, statSync, copyFileSync, renameSync, readdirSync, createReadStream, mkdirSync, rmSync } from 'node:fs';
-import { resolve, join } from 'node:path';
+import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 import yaml from 'js-yaml';
@@ -25,6 +25,29 @@ function wipeEphemeralData() {
                    'data/applications.md', 'data/pipeline.md', 'data/triage-scores.tsv', 'data/scan-history.tsv']) {
     try { rmSync(join(ROOT, f), { force: true }); } catch { /* ignore */ }
   }
+}
+
+// Snapshot the user's personalization files into backups/setup-<timestamp>/ before
+// the onboarding wizard overwrites them. Returns the backup's relative path, or
+// null if there was nothing to back up (e.g. a genuine first-time setup). Never
+// runs in EPHEMERAL sandboxes — those are meant to be disposable.
+function backupUserFiles() {
+  if (EPHEMERAL) return null;
+  const files = ['config/profile.yml', 'portals.yml', 'cv.md', 'cv.pdf', 'modes/_profile.md', 'article-digest.md'];
+  const present = files.filter(f => existsSync(join(ROOT, f)));
+  if (!present.length) return null;
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
+  const rel = join('backups', 'setup-' + stamp);
+  try {
+    for (const f of present) {
+      const dest = join(ROOT, rel, f);
+      mkdirSync(dirname(dest), { recursive: true });
+      copyFileSync(join(ROOT, f), dest);
+    }
+    return rel;
+  } catch { return null; }
 }
 
 // ----- auto-fix GetTheJob.app permissions on startup -----
@@ -1380,6 +1403,7 @@ ${CSS}
     <p class="muted">Your workspace is configured and ready to go.</p>
   </div>
   <div id="ob-done-list"></div>
+  <div id="ob-backup-note" class="muted" style="display:none;font-size:12.5px;text-align:center;margin:10px auto 0;max-width:560px;line-height:1.5;padding:9px 12px;background:var(--accent-weak);border-radius:9px"></div>
   <div class="ob-done-actions" style="flex-direction:column;align-items:center;gap:8px">
     <button class="ob-btn ob-btn-primary" onclick="runFirstScan(this)" id="ob-scan-btn" style="padding:12px 32px;font-size:15px">Run Your First Scan</button>
     <p class="muted" style="font-size:12px;margin:0">Discovers jobs matching your profile — takes about a minute.</p>
@@ -1769,6 +1793,7 @@ async function completeOnboarding(skipStory, btn) {
     proofDetail: proofDetail,
   };
 
+  let backupPath = null;
   if (state.uploadedFile && !skipCv) {
     const formData = new FormData();
     formData.append('pdf', state.uploadedFile);
@@ -1777,6 +1802,7 @@ async function completeOnboarding(skipStory, btn) {
       const res = await fetch('/api/onboarding/complete', { method: 'POST', body: formData });
       const data = await res.json();
       if (!data.ok) { alert('Setup failed: ' + (data.error || 'unknown')); if (btn) { btn.disabled = false; btn.textContent = 'Finish Setup'; } return; }
+      backupPath = data.backup;
     } catch (e) { alert('Setup failed: ' + e.message); if (btn) { btn.disabled = false; btn.textContent = 'Finish Setup'; } return; }
   } else {
     try {
@@ -1787,10 +1813,18 @@ async function completeOnboarding(skipStory, btn) {
       });
       const data = await res.json();
       if (!data.ok) { alert('Setup failed: ' + (data.error || 'unknown')); if (btn) { btn.disabled = false; btn.textContent = 'Finish Setup'; } return; }
+      backupPath = data.backup;
     } catch (e) { alert('Setup failed: ' + e.message); if (btn) { btn.disabled = false; btn.textContent = 'Finish Setup'; } return; }
   }
 
   buildDoneList();
+  const backupNote = document.getElementById('ob-backup-note');
+  if (backupNote) {
+    backupNote.innerHTML = backupPath
+      ? '🛟 Your previous setup was backed up to <code>' + backupPath + '</code> — restore from there if anything looks wrong.'
+      : '';
+    backupNote.style.display = backupPath ? '' : 'none';
+  }
   goStep(6);
 }
 </script>
@@ -2840,7 +2874,7 @@ function renderSettings() {
     ${roles.length ? row('Target roles', roles.join(', ')) : ''}
     ${comp.target_range ? row('Comp target', comp.target_range + (comp.currency && !new RegExp('\\b' + String(comp.currency).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(comp.target_range) ? ' ' + comp.currency : '')) : ''}
     ${row('Companies tracked', companyCount)}
-    <div style="margin-top:14px"><a class="btn-set" href="/onboarding?edit=1">Re-run the setup wizard →</a> <span class="muted" style="font-size:12.5px">or edit <code>config/profile.yml</code>, <code>portals.yml</code>, <code>cv.md</code> directly</span></div>
+    <div style="margin-top:14px"><a class="btn-set" href="/onboarding?edit=1" onclick="return confirm('Re-running setup replaces your profile, scoring rules, tracked companies, and CV with whatever you enter next.\\n\\nA timestamped backup of your current setup is saved automatically (to backups/), but continue?');">Re-run the setup wizard →</a> <span class="muted" style="font-size:12.5px">replaces your current setup — a backup is saved automatically. Or edit <code>config/profile.yml</code>, <code>portals.yml</code>, <code>cv.md</code> directly.</span></div>
   </div>`;
 
   const body = `
@@ -3332,6 +3366,10 @@ const server = createServer(async (req, res) => {
 
         const { name, email, location, linkedin, industries, roles, companies, comp, currency, cv, workpref, avoid } = payload;
 
+        // Safety net: before overwriting anything, snapshot the existing user
+        // files so a re-run of the wizard can never silently destroy a profile.
+        const backupPath = backupUserFiles();
+
         mkdirSync(join(ROOT, 'config'), { recursive: true });
         mkdirSync(join(ROOT, 'data'), { recursive: true });
 
@@ -3473,7 +3511,7 @@ const server = createServer(async (req, res) => {
             '# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n');
         }
 
-        return sendJson(res, 200, { ok: true });
+        return sendJson(res, 200, { ok: true, backup: backupPath });
       } catch (e) {
         return sendJson(res, 500, { ok: false, error: e.message });
       }
