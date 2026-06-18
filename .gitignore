@@ -39,3 +39,6 @@ dashboard/career-dashboard
 # Backups
 *.bak
 *.bak-*
+
+# Onboarding setup backups (copies of user data)
+backups/
