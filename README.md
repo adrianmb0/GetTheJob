@@ -13,7 +13,7 @@ GetTheJob scans job boards, scores every posting against your profile, generates
 
 ## Getting started — from zero
 
-Never touched a terminal? You can still do this. The whole thing is: **install one program, download this folder, and click an app.** About 5 minutes. Follow the steps in order.
+Never touched a terminal? Almost none needed — you'll **install one program, paste one command, and click an app.** About 5 minutes. Follow the steps in order.
 
 > **What you need:** a Mac (the one-click app is macOS — Windows/Linux works too, see the terminal path in each step). The dashboard, scanning, and tracking are **free**. The **AI features** (scoring jobs, tailored resumes) run on [Claude Code](https://claude.com/claude-code) with a Claude Pro or Max plan — you can add that later; everything else works without it.
 
@@ -21,21 +21,25 @@ Never touched a terminal? You can still do this. The whole thing is: **install o
 
 GetTheJob runs on Node.js. Go to **[nodejs.org](https://nodejs.org)**, download the **LTS** version, open the downloaded file, and click through the installer. That's it. (This also installs `npm`, which the app needs.)
 
-### 2. Download GetTheJob
+### 2. Get GetTheJob
 
-- At the top of this GitHub page, click the green **`Code`** button → **Download ZIP**, then unzip it.
-- *(Prefer git? `git clone https://github.com/adrianmb0/GetTheJob.git`.)*
-- You now have a folder called **`GetTheJob`**. Put it somewhere you'll find it (e.g. your Documents).
+Open **Terminal** (press ⌘-Space, type `Terminal`, hit Enter) and paste this, then Enter:
+
+```bash
+git clone https://github.com/adrianmb0/GetTheJob.git
+```
+
+- If macOS pops up *"install the command line developer tools,"* click **Install**, wait for it, then run the command again.
+- You now have a **`GetTheJob`** folder (in your home folder). *(Getting it this way — rather than a ZIP — is what lets the app launch on the first click without a macOS security warning.)*
 
 ### 3. Open it
 
-**Easiest — macOS, no terminal:** open the `GetTheJob` folder and **double-click `GetTheJob.app`** (drag it to your Dock for one-click access later).
+Open the `GetTheJob` folder in Finder and **double-click `GetTheJob.app`** (drag it to your Dock for one-click access later).
 
-- **First click** sets things up for you: it opens a Terminal window and installs what it needs (~1 minute). When it says *"Setup complete,"* click the app again — your dashboard opens.
-- If macOS says the app is *"from an unidentified developer,"* right-click `GetTheJob.app` → **Open** → **Open** (one time only).
-- If you don't have Node.js yet, the app opens the download page for you — do Step 1, then come back.
+- The app opens a **setup page in your browser** that walks you through the rest. On the first run it installs everything (~1 minute — you'll see a Terminal doing it) and then **takes you straight to setup automatically.** You don't have to click anything again.
+- If you don't have Node.js yet, that page shows a **Download Node.js** button — install it, then click `GetTheJob.app` again.
 
-**Or with the terminal (any OS):**
+**Prefer the terminal? (any OS):**
 
 ```bash
 cd GetTheJob

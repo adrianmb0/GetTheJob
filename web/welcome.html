@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GetTheJob — Setup</title>
+<style>
+  :root {
+    --canvas: #f6f4ef; --surface: #fffefb; --ink: #2b2722; --muted: #8a8378;
+    --border: #e7e2d8; --accent: #3a6b45; --accent-weak: #e8efe7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --canvas: #1c1a17; --surface: #262320; --ink: #ece7df; --muted: #9b9486;
+            --border: #38332d; --accent: #7faa86; --accent-weak: #2a322a; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(120% 120% at 50% 0%, var(--surface), var(--canvas));
+    color: var(--ink); padding: 24px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+  }
+  .card {
+    width: 100%; max-width: 540px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 38px 36px; box-shadow: 0 1px 2px rgba(40,30,20,.05), 0 18px 50px rgba(40,30,20,.12);
+    text-align: center;
+  }
+  .logo {
+    width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 16px;
+    background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center;
+    font-size: 28px; font-weight: 800; letter-spacing: -.02em;
+  }
+  h1 { font-size: 23px; margin: 0 0 4px; letter-spacing: -.01em; }
+  .tagline { color: var(--muted); font-size: 14px; margin: 0 0 26px; }
+  .steps { text-align: left; margin: 0 0 22px; display: flex; flex-direction: column; gap: 12px; }
+  .step { display: flex; gap: 12px; align-items: flex-start; opacity: .55; transition: opacity .25s; }
+  .step.active { opacity: 1; }
+  .step.done { opacity: 1; }
+  .step .mk {
+    flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;
+    color: var(--muted); background: transparent;
+  }
+  .step.active .mk { border-color: var(--accent); color: var(--accent); }
+  .step.done .mk { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .step .tx { font-size: 14px; }
+  .step .tx small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 1px; }
+  .status {
+    display: flex; align-items: center; justify-content: center; gap: 9px;
+    font-size: 13.5px; color: var(--muted); margin: 4px 0 18px; min-height: 20px;
+  }
+  .spinner {
+    width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+  .btn {
+    display: inline-block; background: var(--accent); color: #fff; text-decoration: none;
+    border-radius: 11px; padding: 13px 30px; font-size: 15px; font-weight: 600;
+    box-shadow: 0 1px 2px rgba(40,30,20,.06), 0 8px 22px rgba(40,30,20,.12);
+  }
+  .btn:hover { opacity: .92; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .fine { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
+  .link { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .link:hover { text-decoration: underline; }
+  .hidden { display: none !important; }
+  code { background: var(--border); padding: 1px 6px; border-radius: 5px; font-size: 12.5px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">G</div>
+    <h1>Get The Job</h1>
+    <p class="tagline">Your AI job-search command center</p>
+
+    <!-- STATE: setup (first run) -->
+    <section id="state-setup" class="hidden">
+      <div class="steps">
+        <div class="step active" id="s1"><div class="mk" id="m1">1</div><div class="tx">Installing what's needed<small>A Terminal window is doing this now — about a minute. You can ignore it.</small></div></div>
+        <div class="step" id="s2"><div class="mk" id="m2">2</div><div class="tx">Starting your dashboard</div></div>
+        <div class="step" id="s3"><div class="mk" id="m3">3</div><div class="tx">Taking you to setup</div></div>
+      </div>
+      <div class="status"><span class="spinner" id="spin"></span><span id="status-text">Waiting for your dashboard…</span></div>
+      <p class="muted" id="slow" style="display:none">First run can take a couple of minutes on a slow connection. Keep this tab open.</p>
+      <p class="fine">Taking too long? <a class="link" href="http://localhost:3737">Open my dashboard →</a></p>
+    </section>
+
+    <!-- STATE: node (Node.js missing / too old) -->
+    <section id="state-node" class="hidden">
+      <h1 style="font-size:18px;margin:0 0 8px">Step 1 — Install Node.js</h1>
+      <p class="muted" style="font-size:14px;margin:0 0 22px">GetTheJob runs on Node.js (it's free and installs in about a minute). Download the <b>LTS</b> version, run the installer, then come back.</p>
+      <a class="btn" href="https://nodejs.org/en/download" target="_blank" rel="noopener">Download Node.js →</a>
+      <p class="fine">After it's installed, click <b>GetTheJob</b> in your Dock again.</p>
+    </section>
+  </div>
+
+<script>
+  (function () {
+    var params = new URLSearchParams(location.search);
+    var state = params.get('state') === 'node' ? 'node' : 'setup';
+    document.getElementById('state-' + state).classList.remove('hidden');
+    if (state !== 'setup') return;
+
+    var PING = 'http://localhost:3737/api/ping';
+    var DASH = 'http://localhost:3737';
+    var started = Date.now();
+    var redirecting = false;
+
+    function setDone(id) {
+      var s = document.getElementById('s' + id), m = document.getElementById('m' + id);
+      if (s) { s.classList.add('done'); s.classList.remove('active'); }
+      if (m) m.textContent = '✓';
+    }
+    function setActive(id) { var s = document.getElementById('s' + id); if (s) s.classList.add('active'); }
+
+    async function ready() {
+      try {
+        var r = await fetch(PING, { cache: 'no-store' });
+        return r && r.ok;
+      } catch (_) { return false; }
+    }
+
+    async function tick() {
+      if (redirecting) return;
+      if (await ready()) {
+        redirecting = true;
+        setDone(1); setDone(2); setActive(3); setDone(3);
+        document.getElementById('spin').style.display = 'none';
+        document.getElementById('status-text').textContent = 'Ready! Taking you there…';
+        setTimeout(function () { location.replace(DASH); }, 400);
+        return;
+      }
+      var elapsed = Date.now() - started;
+      if (elapsed > 45000) { var slow = document.getElementById('slow'); if (slow) slow.style.display = 'block'; }
+      if (elapsed > 600000) {
+        document.getElementById('spin').style.display = 'none';
+        document.getElementById('status-text').textContent = 'Setup seems stuck — check the Terminal window for errors.';
+        return; // stop polling after 10 min
+      }
+      setTimeout(tick, 800);
+    }
+    tick();
+  })();
+</script>
+</body>
+</html>
