@@ -664,6 +664,23 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .set-v { flex: 1; color: var(--ink); }
 .btn-set { display: inline-block; background: var(--accent); color: #fff; text-decoration: none; border-radius: 9px; padding: 8px 16px; font-size: 13px; font-weight: 600; }
 .btn-set:hover { opacity: .9; }
+a.icon-btn { text-decoration: none; font-weight: 700; }
+a.icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+.gsteps { display: flex; flex-direction: column; gap: 12px; max-width: 760px; }
+.gstep { display: flex; gap: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; }
+.gstep.done { background: var(--accent-weak); border-color: var(--accent); }
+.gstep-mark { flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; background: var(--neutral-bg); color: var(--muted); }
+.gstep.done .gstep-mark { background: var(--accent); color: #fff; }
+.gstep-body { flex: 1; min-width: 0; }
+.gstep-title { font-size: 14.5px; font-weight: 680; }
+.gstep-ok { font-size: 10.5px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .03em; margin-left: 6px; }
+.gstep-status { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.gstep-detail { font-size: 13px; margin-top: 9px; line-height: 1.55; }
+.gstep-actions { margin-top: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.gstep-ol { margin: 6px 0 0; padding-left: 18px; }
+.gstep-ol li { margin: 4px 0; }
+.gfree { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; background: rgba(58,107,69,.15); color: #3A6B45; padding: 1px 7px; border-radius: 999px; vertical-align: middle; }
+.gcc { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; background: var(--accent-weak); color: var(--accent); padding: 1px 7px; border-radius: 999px; vertical-align: middle; }
 .row-deleting { opacity: 0; transition: opacity 0.2s; }
 
 /* ----- batch banner ----- */
@@ -1002,10 +1019,12 @@ function shell(title, bodyHtml, nav = {}) {
     </nav>
     <div class="spacer"></div>
     <div class="hsearch"><input id="global-search" type="search" placeholder="Search…" autocomplete="off" spellcheck="false"></div>
+    <a class="icon-btn" id="guide-link" href="/guide" title="Getting Started — what to do next" aria-label="Getting Started">?</a>
     <button class="icon-btn" id="theme-toggle" title="Toggle dark mode" onclick="toggleTheme()">◐</button>
     <div class="menu">
       <button class="icon-btn" title="More" aria-label="More" onclick="toggleMenu(event, this)">⋯</button>
       <div class="menu-pop">
+        <a href="/guide">❓&nbsp; Getting Started</a>
         <a href="/settings">⚙&nbsp; Settings</a>
         <div class="sep"></div>
         <button class="danger" onclick="quitServer()">⎋&nbsp; Quit GetTheJob</button>
@@ -2888,6 +2907,79 @@ ${guardrailsPanel(true)}
   return shell('Settings', body, { ...getCounts() });
 }
 
+// Status-aware "Getting Started" guide: shows the whole journey and detects how
+// far along the user is, with the exact next action for each step. Reachable any
+// time from the header so a confused user always knows what to do next.
+function renderGuide() {
+  const profileDone = existsSync(join(ROOT, 'config', 'profile.yml'));
+  let scanCount = 0;
+  try { scanCount = loadScanHistory().size; } catch { /* none */ }
+  let triageCount = 0;
+  try { const p = join(ROOT, 'data', 'triage-scores.tsv'); if (existsSync(p)) triageCount = parseTsv(readFileSync(p, 'utf8')).rows.length; } catch { /* none */ }
+  const { pipeline } = getCounts();
+  const pipelineCount = pipeline || 0;
+
+  const step = (done, num, title, statusHtml, bodyHtml) => `
+    <div class="gstep${done ? ' done' : ''}">
+      <div class="gstep-mark">${done ? '✓' : num}</div>
+      <div class="gstep-body">
+        <div class="gstep-title">${title}${done ? ' <span class="gstep-ok">done</span>' : ''}</div>
+        <div class="gstep-status">${statusHtml}</div>
+        ${bodyHtml ? `<div class="gstep-detail">${bodyHtml}</div>` : ''}
+      </div>
+    </div>`;
+
+  const cc = '<a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a>';
+  const codeTag = s => `<code style="background:var(--border);padding:1px 6px;border-radius:5px">${s}</code>`;
+
+  const steps = [
+    step(profileDone, '1', 'Set up your profile',
+      profileDone ? 'Your name, roles, and companies are configured.' : 'Finish the setup wizard.',
+      `Change anything later in <a href="/settings">Settings</a>.`),
+
+    step(scanCount > 0, '2', 'Find jobs <span class="gfree">free</span>',
+      scanCount > 0 ? `<b>${scanCount}</b> postings discovered so far.` : 'No scan has run yet.',
+      `Checks the job boards of the companies you track — no AI, no cost.
+       <div class="gstep-actions"><button class="btn-set" id="guide-scan" onclick="guideScan(this)">Run a scan now</button> <span class="muted" id="guide-scan-msg" style="font-size:12.5px"></span></div>
+       <div class="muted" style="font-size:12px;margin-top:6px">or run ${codeTag('npm run scan')} in the project folder.</div>`),
+
+    step(triageCount > 0, '3', 'Score them against your profile <span class="gcc">Claude Code</span>',
+      triageCount > 0 ? `<b>${triageCount}</b> postings scored — see your <a href="/?view=inbox">Inbox</a>.` : 'Not scored yet.',
+      `Scanning finds jobs; the AI scoring runs in ${cc} (Pro or Max plan):
+       <ol class="gstep-ol">
+         <li>Open the <b>GetTheJob</b> folder in Claude Code — in a terminal: ${codeTag('cd GetTheJob &amp;&amp; claude')}, or open it with the Claude Code editor extension.</li>
+         <li>Run ${codeTag('/get-the-job triage')} — it reads each posting and scores it 1–5 against your profile.</li>
+         <li>Refresh your <a href="/?view=inbox">Inbox</a> to see them ranked.</li>
+       </ol>`),
+
+    step(pipelineCount > 0, '4', 'Review &amp; apply',
+      pipelineCount > 0 ? `<b>${pipelineCount}</b> in your <a href="/?view=pipeline">Pipeline</a>.` : 'Nothing in your pipeline yet.',
+      `From your <a href="/?view=inbox">Inbox</a>, send strong leads to your Pipeline. Then run ${codeTag('/get-the-job apply')} in Claude Code to generate a tailored resume, cover letter, and application answers for that role.`),
+  ].join('');
+
+  const body = `
+<div class="toolbar"><div><h1>Getting Started</h1><div class="sub">Your job search, step by step. This updates as you go — green steps are done.</div></div></div>
+<div class="muted" style="margin:0 0 16px;font-size:13px;line-height:1.55;max-width:720px">Steps marked <span class="gfree">free</span> run on plain Node (browsing, scanning, tracking). Steps marked <span class="gcc">Claude Code</span> use the AI and need <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a> with a Pro or Max plan.</div>
+<div class="gsteps">${steps}</div>
+<script>
+async function guideScan(btn){
+  const msg=document.getElementById('guide-scan-msg');
+  btn.disabled=true; if(msg) msg.textContent='Scanning…';
+  try{
+    const r=await(await fetch('/api/run-scan',{method:'POST'})).json();
+    if(!r.ok){ if(msg) msg.textContent='Scan failed: '+(r.error||'unknown'); btn.disabled=false; return; }
+    const poll=setInterval(async()=>{
+      try{ const s=await(await fetch('/api/scan-status')).json();
+        if(!s.running){ clearInterval(poll); if(msg) msg.innerHTML='Done — refreshing…'; setTimeout(()=>location.reload(),800); }
+      }catch(e){}
+    },3000);
+  }catch(e){ if(msg) msg.textContent='Scan failed: '+e.message; btn.disabled=false; }
+}
+</script>
+`;
+  return shell('Getting Started', body, { ...getCounts() });
+}
+
 function renderInbox(query) {
   const path = join(ROOT, 'data', 'triage-scores.tsv');
   if (!existsSync(path)) {
@@ -3309,6 +3401,12 @@ const server = createServer(async (req, res) => {
     if (pathname === '/settings') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(renderSettings());
+      return;
+    }
+
+    if (pathname === '/guide') {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(renderGuide());
       return;
     }
 
