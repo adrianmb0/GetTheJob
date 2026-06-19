@@ -1,57 +1,75 @@
 #!/bin/bash
-# GetTheJob launcher — starts the dashboard server and opens the browser
+# GetTheJob launcher — starts the dashboard server and opens the browser.
+# Get the project via `git clone` (no macOS Gatekeeper block), so this runs on
+# the first click. Dependencies: bash + osascript + open + curl + lsof only.
 
-# Ensure PATH includes common install locations
+# --- Find node/npm even when launched from the GUI (Homebrew, nvm, user bins) ---
 export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin:$PATH"
-[ -f "$HOME/.zprofile" ] && source "$HOME/.zprofile" 2>/dev/null
+[ -f "$HOME/.zprofile" ]     && source "$HOME/.zprofile"     2>/dev/null
 [ -f "$HOME/.bash_profile" ] && source "$HOME/.bash_profile" 2>/dev/null
-[ -s "$HOME/.nvm/nvm.sh" ] && source "$HOME/.nvm/nvm.sh" 2>/dev/null
+[ -s "$HOME/.nvm/nvm.sh" ]   && source "$HOME/.nvm/nvm.sh"   2>/dev/null
 
-# Resolve project directory (the .app lives inside the project)
+# The .app lives at <project>/GetTheJob.app/Contents/MacOS/GetTheJob → ../../.. == project.
 APP_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$APP_DIR" || exit 1
 
-# Check Node.js (it bundles npm). Required once per machine/account — open the
-# download page and tell the user to install it, then relaunch.
-if ! command -v node &>/dev/null || ! command -v npm &>/dev/null; then
+PORT=3737
+PING_URL="http://localhost:$PORT/api/ping"
+APP_URL="http://localhost:$PORT"
+WELCOME_URL="file://$APP_DIR/web/welcome.html"
+
+# --- Step 1: Node.js must be present AND new enough (major >= 18) ---
+node_major() {
+  local v
+  v="$(node -v 2>/dev/null)"   # e.g. "v20.11.0"
+  v="${v#v}"                   # -> "20.11.0"
+  v="${v%%.*}"                 # -> "20"
+  case "$v" in ''|*[!0-9]*) return 1 ;; *) printf '%s' "$v" ;; esac
+}
+NODE_OK=0
+if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+  MAJOR="$(node_major)" && [ -n "$MAJOR" ] && [ "$MAJOR" -ge 18 ] && NODE_OK=1
+fi
+if [ "$NODE_OK" -ne 1 ]; then
+  open "$WELCOME_URL?state=node" 2>/dev/null
   open "https://nodejs.org/en/download" 2>/dev/null
-  osascript -e 'display alert "GetTheJob needs Node.js" message "GetTheJob runs on Node.js (which includes npm). I opened the download page — install the LTS version, then click GetTheJob in your Dock again." as critical' 2>/dev/null
   exit 1
 fi
 
-# First run: dependencies not installed yet (a fresh clone has no node_modules).
-# Run `npm install` visibly in Terminal so the user sees progress, then ask them
-# to relaunch — instead of failing silently when the server can't find a package.
+# --- Already running? Just focus the browser (don't start a second server) ---
+if curl -fsS -m 1 "$PING_URL" >/dev/null 2>&1; then
+  open "$APP_URL"
+  exit 0
+fi
+
+# Clear any stale (non-responsive) process holding the port before starting.
+lsof -ti tcp:"$PORT" | xargs kill 2>/dev/null || true
+sleep 0.5
+
+# --- First run (no node_modules): one click installs + launches. Open the
+# welcome page (it polls and auto-forwards to onboarding) and run install +
+# server in a visible Terminal that stays alive as the console. ---
 if [ ! -d "$APP_DIR/node_modules" ]; then
+  open "$WELCOME_URL?state=setup" 2>/dev/null
+  ESC_DIR="${APP_DIR//\'/\'\\\'\'}"   # make the path safe inside single quotes
   /usr/bin/osascript \
     -e 'tell application "Terminal" to activate' \
-    -e "tell application \"Terminal\" to do script \"cd '$APP_DIR' && echo Installing GetTheJob dependencies, please wait... && npm install && echo && echo Setup complete. Click GetTheJob in your Dock again to start.\"" 2>/dev/null
+    -e "tell application \"Terminal\" to do script \"cd '$ESC_DIR' && echo '' && echo '=== GetTheJob first-time setup ===' && echo 'Installing dependencies (about a minute)...' && echo '' && npm install && echo '' && echo 'Setup complete. Starting GetTheJob...' && echo 'Leave this window open — it is the server. Close it to stop GetTheJob.' && exec env AUTOSTART_BATCH=1 node server.mjs\"" \
+    >/dev/null 2>&1
   exit 0
 fi
 
-# Detect an already-running instance. The server owns port 3737, so if it
-# answers /api/ping the app is already open — just focus the browser instead of
-# starting a second server (which would re-run the morning batch).
-if curl -fsS -m 1 "http://localhost:3737/api/ping" >/dev/null 2>&1; then
-  open "http://localhost:3737"
-  exit 0
-fi
-
-# No healthy instance — clear any stale process holding the port, then start fresh.
-lsof -ti:3737 | xargs kill 2>/dev/null || true
-sleep 0.5
-
-# Start the server (morning batch auto-launches inside server.mjs, respecting the 24h cooldown)
+# --- Normal cold start (deps present): start the server, then open the browser
+# once it actually answers (poll, not a fixed sleep, so onboarding never loads early). ---
 AUTOSTART_BATCH=1 node server.mjs &
 SERVER_PID=$!
-sleep 1
+for i in $(seq 1 60); do
+  if curl -fsS -m 1 "$PING_URL" >/dev/null 2>&1; then open "$APP_URL"; break; fi
+  kill -0 "$SERVER_PID" 2>/dev/null || break   # server died on boot → stop waiting
+  sleep 0.5
+done
 
-# Open the dashboard
-open "http://localhost:3737"
-
-# Auto-minimize the Terminal window
-sleep 0.5
+# Tuck away the (usually hidden) Terminal if the OS surfaced one.
 osascript -e 'tell application "Terminal" to set miniaturized of front window to true' 2>/dev/null
 
-# Keep the app alive until the server exits
-wait $SERVER_PID
+wait "$SERVER_PID"
