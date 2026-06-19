@@ -11,9 +11,11 @@ export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin:$PATH"
 APP_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$APP_DIR" || exit 1
 
-# Check Node.js
-if ! command -v node &>/dev/null; then
-  osascript -e 'display alert "GetTheJob" message "Node.js not found. Install from https://nodejs.org" as critical'
+# Check Node.js (it bundles npm). Required once per machine/account — open the
+# download page and tell the user to install it, then relaunch.
+if ! command -v node &>/dev/null || ! command -v npm &>/dev/null; then
+  open "https://nodejs.org/en/download" 2>/dev/null
+  osascript -e 'display alert "GetTheJob needs Node.js" message "GetTheJob runs on Node.js (which includes npm). I opened the download page — install the LTS version, then click GetTheJob in your Dock again." as critical' 2>/dev/null
   exit 1
 fi
 
