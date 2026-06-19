@@ -17,6 +17,16 @@ if ! command -v node &>/dev/null; then
   exit 1
 fi
 
+# First run: dependencies not installed yet (a fresh clone has no node_modules).
+# Run `npm install` visibly in Terminal so the user sees progress, then ask them
+# to relaunch — instead of failing silently when the server can't find a package.
+if [ ! -d "$APP_DIR/node_modules" ]; then
+  /usr/bin/osascript \
+    -e 'tell application "Terminal" to activate' \
+    -e "tell application \"Terminal\" to do script \"cd '$APP_DIR' && echo Installing GetTheJob dependencies, please wait... && npm install && echo && echo Setup complete. Click GetTheJob in your Dock again to start.\"" 2>/dev/null
+  exit 0
+fi
+
 # Detect an already-running instance. The server owns port 3737, so if it
 # answers /api/ping the app is already open — just focus the browser instead of
 # starting a second server (which would re-run the morning batch).
