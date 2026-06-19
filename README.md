@@ -11,29 +11,63 @@ GetTheJob scans job boards, scores every posting against your profile, generates
 3. **Apply Packs** — Generates a custom resume, cover letter, and application answers for every role you pursue — ready to paste into any application form
 4. **Track** — One dashboard from application to offer, with status updates, follow-up cadences, and interview prep
 
-## Quick start
+## Getting started — from zero
 
-> **Prerequisite:** the AI features run on [Claude Code](https://claude.com/claude-code) with a Claude Pro or Max plan. The dashboard and scanner work without it. See [Requirements](#requirements).
+Never touched a terminal? You can still do this. The whole thing is: **install one program, download this folder, and click an app.** About 5 minutes. Follow the steps in order.
+
+> **What you need:** a Mac (the one-click app is macOS — Windows/Linux works too, see the terminal path in each step). The dashboard, scanning, and tracking are **free**. The **AI features** (scoring jobs, tailored resumes) run on [Claude Code](https://claude.com/claude-code) with a Claude Pro or Max plan — you can add that later; everything else works without it.
+
+### 1. Install Node.js (one time per computer)
+
+GetTheJob runs on Node.js. Go to **[nodejs.org](https://nodejs.org)**, download the **LTS** version, open the downloaded file, and click through the installer. That's it. (This also installs `npm`, which the app needs.)
+
+### 2. Download GetTheJob
+
+- At the top of this GitHub page, click the green **`Code`** button → **Download ZIP**, then unzip it.
+- *(Prefer git? `git clone https://github.com/adrianmb0/GetTheJob.git`.)*
+- You now have a folder called **`GetTheJob`**. Put it somewhere you'll find it (e.g. your Documents).
+
+### 3. Open it
+
+**Easiest — macOS, no terminal:** open the `GetTheJob` folder and **double-click `GetTheJob.app`** (drag it to your Dock for one-click access later).
+
+- **First click** sets things up for you: it opens a Terminal window and installs what it needs (~1 minute). When it says *"Setup complete,"* click the app again — your dashboard opens.
+- If macOS says the app is *"from an unidentified developer,"* right-click `GetTheJob.app` → **Open** → **Open** (one time only).
+- If you don't have Node.js yet, the app opens the download page for you — do Step 1, then come back.
+
+**Or with the terminal (any OS):**
 
 ```bash
-git clone https://github.com/adrianmb0/GetTheJob.git
 cd GetTheJob
 npm install
 npm start
 ```
 
-Open [http://localhost:3737](http://localhost:3737) — the guided setup wizard walks you through everything.
+Then open **[http://localhost:3737](http://localhost:3737)**.
+
+### 4. Set up your profile (~3 min)
+
+The dashboard opens into a **guided wizard** — enter your name and target roles, pick a few companies to track, and paste or upload your resume. It writes all the config for you; no files to edit.
+
+### 5. Find jobs — free
+
+On the last step, click **Run Your First Scan** (or run `npm run scan`). It checks the job boards of the companies you picked and fills your **Inbox** with open roles. No AI, no cost.
+
+### 6. Score them against your profile — needs Claude Code
+
+Scanning finds jobs; the **AI scoring** runs in [Claude Code](https://claude.com/claude-code) (Pro or Max plan):
+
+1. Open the `GetTheJob` folder in Claude Code — in a terminal: `cd GetTheJob && claude`, or open the folder with the Claude Code VS Code / JetBrains extension.
+2. Run **`/get-the-job triage`** — it reads each posting, scores it 1–5 against your profile, and fills your Inbox with verdicts (Apply High / Apply / Skip).
+3. Refresh the dashboard Inbox to see them ranked.
+
+### 7. Apply
+
+Send the strong leads to your **Pipeline**, then run **`/get-the-job apply`** to generate a tailored resume, cover letter, and application answers for that role — ready to paste into any form. See [Scoring & applying](#scoring--applying-the-claude-code-step) for the full loop.
 
 ### Opening it again later
 
-`npm start` from the project folder (the `GetTheJob` folder you cloned) always works, then open [http://localhost:3737](http://localhost:3737).
-
-On **macOS** you can skip the terminal: the repo ships with a small launcher app, **`GetTheJob.app`**, in that same project folder.
-
-- **Double-click `GetTheJob.app`** to start the server and open the dashboard, or **drag it onto your Dock** for one-click access from then on.
-- **First launch only:** because the app isn't code-signed, macOS may say it's from an unidentified developer. Right-click (or Control-click) `GetTheJob.app` → **Open** → **Open** to approve it once. After that, a normal click works.
-
-On **Windows / Linux**, there's no `.app` — use `npm start` and open the URL above.
+Just **click `GetTheJob.app`** again (or run `npm start` in the folder) and open [http://localhost:3737](http://localhost:3737). After the one-time setup above, it starts instantly. On **Windows / Linux** there's no `.app` — use `npm start`.
 
 ## What you get
 
