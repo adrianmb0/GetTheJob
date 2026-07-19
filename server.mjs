@@ -567,9 +567,42 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .kc.is-new { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
 
 /* ----- pipeline board ----- */
-.board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; align-items: start; }
-@media (max-width: 1100px) { .board { grid-template-columns: repeat(3, 1fr); } }
+.board { display: grid; grid-template-columns: auto repeat(5, 1fr); gap: 12px; align-items: start; }
+@media (max-width: 1100px) { .board { grid-template-columns: repeat(3, 1fr); } .col-rejected, .col-rejected.collapsed { width: auto; } }
 @media (max-width: 680px) { .board { grid-template-columns: 1fr; } }
+/* Rejected: collapsible leftmost rail. Header matches other columns; when
+   collapsed, a stacked-card "peek" below hints there's hidden content. */
+.col-rejected { width: 220px; }
+.col-rejected.collapsed { width: 160px; min-height: 0; position: relative; }
+.col-rejected.collapsed .col-body { display: none; }
+.col-h-toggle { cursor: pointer; user-select: none; }
+.col-h-toggle .chev { display: inline-block; transition: transform .15s ease; margin-right: 7px; font-size: 11px; color: var(--muted); }
+.col-rejected:not(.collapsed) .col-h-toggle .chev { transform: rotate(90deg); }
+.rej-peek { display: none; }
+.col-rejected.collapsed .rej-peek { display: block; cursor: pointer; padding-bottom: 6px; }
+.rej-peek-ghost { height: 30px; border: 1px solid var(--border); border-radius: 10px; background: var(--canvas); position: relative; transition: transform .2s ease; }
+.rej-peek-ghost::before, .rej-peek-ghost::after { content: ''; position: absolute; left: 8px; right: 8px; border: 1px solid var(--border); border-top: none; border-radius: 0 0 9px 9px; background: var(--canvas); height: 6px; transition: bottom .2s ease; }
+.rej-peek-ghost::before { bottom: -5px; }
+.rej-peek-ghost::after { bottom: -9px; left: 13px; right: 13px; opacity: .55; }
+.rej-peek-cap { margin-top: 15px; text-align: center; font-size: 11px; color: var(--muted); transition: opacity .18s ease; }
+/* playful fan-out of the stacked cards on hover */
+.col-rejected.collapsed:hover .rej-peek-ghost { transform: translateY(-2px); }
+.col-rejected.collapsed:hover .rej-peek-ghost::before { bottom: -7px; }
+.col-rejected.collapsed:hover .rej-peek-ghost::after { bottom: -13px; }
+.col-rejected.collapsed:hover .rej-peek-cap { opacity: .5; }
+/* floating preview that fades + slides in on hover — no board reflow */
+.rej-preview { display: none; }
+.col-rejected.collapsed .rej-preview { display: block; position: absolute; left: 8px; top: 44px; width: 248px; z-index: 40; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 28px rgba(0,0,0,.15); padding: 6px; opacity: 0; transform: translateY(-6px) scale(.98); transform-origin: top left; pointer-events: none; transition: opacity .18s ease, transform .22s cubic-bezier(.2,.7,.3,1); }
+.col-rejected.collapsed:hover .rej-preview { opacity: 1; transform: translateY(0) scale(1); }
+.rej-pv-row { display: flex; align-items: center; gap: 8px; padding: 7px 6px; opacity: 0; transform: translateX(-4px); transition: opacity .2s ease, transform .2s ease; }
+.rej-pv-row + .rej-pv-row { border-top: 1px solid var(--border); }
+.col-rejected.collapsed:hover .rej-pv-row { opacity: 1; transform: translateX(0); }
+.col-rejected.collapsed:hover .rej-pv-row:nth-child(2) { transition-delay: .04s; }
+.col-rejected.collapsed:hover .rej-pv-row:nth-child(3) { transition-delay: .08s; }
+.col-rejected.collapsed:hover .rej-pv-row:nth-child(4) { transition-delay: .12s; }
+.rej-pv-txt { font-size: 12px; color: var(--fg); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.rej-pv-txt b { font-weight: 680; }
+.rej-pv-more { text-align: center; font-size: 10.5px; color: var(--muted); padding: 5px 0 2px; }
 .col { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 11px; min-height: 180px; }
 .col.drop-target { outline: 2px dashed var(--accent); outline-offset: -4px; background: var(--accent-weak); }
 .closed-lane.drop-target { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 10px; background: var(--accent-weak); }
@@ -1043,13 +1076,14 @@ function renderOnboarding(previewMode = false) {
       status: header.findIndex(h => /^status$/i.test(h)),
     };
     const COLS = [
+      { key: 'Rejected',    dot: '#B4534B',            statuses: ['Rejected'] },
       { key: 'Reviewing',   dot: 'var(--neutral-ink)', statuses: ['Evaluated'] },
       { key: 'Shortlisted', dot: '#C99A2E',            statuses: ['Shortlisted'] },
       { key: 'Applied',     dot: 'var(--accent)',      statuses: ['Applied', 'Responded'] },
       { key: 'Interview',   dot: '#8B5CF6',            statuses: ['Interview'] },
       { key: 'Offer',       dot: '#3A6B45',            statuses: ['Offer'] },
     ];
-    const CLOSED = ['Rejected', 'Discarded'];
+    const CLOSED = ['Discarded', 'SKIP'];
     const miniCard = (r) => {
       const scoreRaw = r[idx.score] || '';
       return `<div class="kc">
@@ -1064,7 +1098,7 @@ function renderOnboarding(previewMode = false) {
     }).join('');
     const closedCards = rows.filter(r => CLOSED.includes((r[idx.status] || '').trim()));
     const closedHtml = closedCards.length
-      ? `<details class="closed-lane"><summary>Closed — ${closedCards.length} (rejected / discarded)</summary><div class="closed-grid">${closedCards.map(miniCard).join('')}</div></details>`
+      ? `<details class="closed-lane"><summary>Closed — ${closedCards.length} (discarded / skipped)</summary><div class="closed-grid">${closedCards.map(miniCard).join('')}</div></details>`
       : '';
     previewTrackerHtml = `<div style="padding:12px"><div class="board">${columnsHtml}</div>${closedHtml}</div>`;
   }
@@ -1180,7 +1214,7 @@ ${CSS}
 .ob-preview-tab { padding: 8px 20px; border: 1px solid var(--border); border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 13px; font-weight: 500; background: var(--row-alt); color: var(--muted); }
 .ob-preview-tab.active { background: #fff; color: var(--fg); border-bottom-color: #fff; position: relative; z-index: 1; }
 .ob-preview-panel { border: 1px solid var(--border); border-radius: 0 6px 6px 6px; background: var(--canvas); padding: 0; max-height: 340px; overflow: auto; position: relative; top: -1px; }
-.ob-preview-panel .board { grid-template-columns: repeat(5, minmax(150px, 1fr)); }
+.ob-preview-panel .board { grid-template-columns: repeat(6, minmax(140px, 1fr)); }
 .ob-preview-panel .col { min-height: 120px; }
 .ob-preview-panel .lead-list { background: var(--surface); }
 .ob-preview-panel .disabled-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; }
@@ -2368,15 +2402,18 @@ function renderPipeline(query) {
   const newIsFresh = withinDays(latestAdded, 2);
   const newCount = newIsFresh ? rows.filter(r => (r[idx.date] || '').trim() === latestAdded).length : 0;
 
-  // Display columns (forward funnel). Closed states live in a collapsible lane.
+  // Display columns (forward funnel). Rejected gets its own collapsible leftmost
+  // column; the quieter Discarded/SKIP states live in the bottom lane.
+  const REJECTED_COL = { key: 'Rejected', dot: '#B4534B', statuses: ['Rejected'] };
   const COLS = [
+    REJECTED_COL,
     { key: 'Reviewing',   dot: 'var(--neutral-ink)', statuses: ['Evaluated'] },
     { key: 'Shortlisted', dot: '#C99A2E',            statuses: ['Shortlisted'] },
     { key: 'Applied',     dot: 'var(--accent)',      statuses: ['Applied', 'Responded'] },
     { key: 'Interview',   dot: '#8B5CF6',            statuses: ['Interview'] },
     { key: 'Offer',       dot: '#3A6B45',            statuses: ['Offer'] },
   ];
-  const CLOSED = ['Rejected', 'Discarded', 'SKIP'];
+  const CLOSED = ['Discarded', 'SKIP'];
   const colOf = (status) => {
     if (status === 'Evaluated') return 'Reviewing';
     if (status === 'Responded') return 'Applied';
@@ -2435,6 +2472,22 @@ function renderPipeline(query) {
     const inner = cards.length
       ? cards.map(card).join('')
       : `<div class="kc-empty">${c.key === 'Offer' ? 'Your next milestone' : 'Nothing here yet'}</div>`;
+    // The Rejected column is the collapsible leftmost rail — its header is a
+    // toggle (chevron), and it carries a distinct class so JS/CSS can fold it.
+    if (c.key === 'Rejected') {
+      const peek = cards.length
+        ? `<div class="rej-peek" role="button" tabindex="0" title="Show rejected roles"><div class="rej-peek-ghost"></div><div class="rej-peek-cap">click to show</div></div>`
+        : '';
+      // Compact hover-preview of the hidden roles (fades in; doesn't reflow the board).
+      const MAX_PV = 5;
+      const pvRows = cards.slice(0, MAX_PV).map(r => {
+        const scoreRaw = r[idx.score] || '';
+        return `<div class="rej-pv-row"><span class="score-mini ${scoreClass(scoreRaw)}">${escapeHtml(scoreRaw || '—')}</span><span class="rej-pv-txt"><b>${escapeHtml(r[idx.company] || '')}</b> · ${escapeHtml(r[idx.role] || '')}</span></div>`;
+      }).join('');
+      const pvMore = cards.length > MAX_PV ? `<div class="rej-pv-more">+${cards.length - MAX_PV} more</div>` : '';
+      const preview = cards.length ? `<div class="rej-preview" aria-hidden="true">${pvRows}${pvMore}</div>` : '';
+      return `<div class="col col-rejected" data-status="${c.statuses[0]}" data-statuses="${c.statuses.join(',')}"><div class="col-h col-h-toggle" role="button" tabindex="0" title="Show/hide rejected roles"><span><span class="chev">▸</span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div>${peek}${preview}<div class="col-body">${inner}</div></div>`;
+    }
     return `<div class="col" data-status="${c.statuses[0]}" data-statuses="${c.statuses.join(',')}"><div class="col-h"><span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div>${inner}</div>`;
   }).join('');
 
@@ -2443,7 +2496,7 @@ function renderPipeline(query) {
     ? `<div class="closed-grid">${closedCards.map(card).join('')}</div>`
     : `<div class="kc-empty" style="margin-top:8px">Drag a card here to mark it closed</div>`;
   const closedSummary = closedCards.length
-    ? `Closed — ${closedCards.length} (rejected / discarded) · drag a card here to close it`
+    ? `Closed — ${closedCards.length} (discarded / skipped) · drag a card here to close it`
     : 'Closed · drag a card here to close it';
   const closedHtml = `<details class="closed-lane" data-status="Discarded" data-statuses="${CLOSED.join(',')}"${closedCards.length ? '' : ' open'}><summary>${closedSummary}</summary>${closedInner}</details>`;
 
@@ -2526,6 +2579,7 @@ function submitAddPosting(e) {
       e.dataTransfer.effectAllowed = 'move';
       try { e.dataTransfer.setData('text/plain', dragNum); } catch (_) {}
       const lane = document.querySelector('.closed-lane'); if (lane) lane.open = true;
+      const rej = document.querySelector('.col-rejected'); if (rej) rej.classList.remove('collapsed');
     });
     c.addEventListener('dragend', () => {
       c.classList.remove('dragging');
@@ -2558,6 +2612,25 @@ function submitAddPosting(e) {
         setTimeout(() => location.reload(), 350);
       }).catch(err => showToast(err.message, true));
     });
+  });
+})();
+// ----- collapsible Rejected column (persists; collapsed by default) -----
+(function(){
+  const col = document.querySelector('.col-rejected');
+  if (!col) return;
+  const KEY = 'getthejob-rejected-collapsed';
+  const stored = localStorage.getItem(KEY);
+  // Default to collapsed so rejections stay tucked away; header is always visible.
+  if (stored === null || stored === '1') col.classList.add('collapsed');
+  const header = col.querySelector('.col-h-toggle');
+  function toggle(){
+    const collapsed = col.classList.toggle('collapsed');
+    localStorage.setItem(KEY, collapsed ? '1' : '0');
+  }
+  const targets = [header, col.querySelector('.rej-peek')].filter(Boolean);
+  targets.forEach(t => {
+    t.addEventListener('click', toggle);
+    t.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
   });
 })();
 </script>
@@ -3062,7 +3135,7 @@ ${guardrailsPanel()}
         else if(d.exitCode===143||d.exitCode===137){state='';icon.textContent='⏹';base='Morning batch stopped.';}
         else if(d.exitCode!==null){state='is-failed';icon.textContent='⚠️';base='Morning batch failed (exit '+d.exitCode+'). Check the terminal for details.';}
         if(d.cooldownActive){
-          // A batch already ran in the last 24h — block, but offer an override.
+          // Already searched in the last 24h — block, but offer an override.
           const hrs=Math.max(1,Math.ceil(d.cooldownRemainingMs/3600000));
           if(!base){state='';icon.textContent='🌙';base='Morning batch already ran today — next run available in ~'+hrs+'h';}
           else{base+=' · next run in ~'+hrs+'h';}
