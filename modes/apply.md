@@ -115,7 +115,7 @@ After generation, update the tracker row's PDF column from `❌` → `✅`.
 Si el candidato confirma que envió la aplicación:
 1. Actualizar estado en `applications.md` de "Evaluada" a "Applied"
 2. Actualizar Section G del report con las respuestas finales
-3. **Remove the URL from `data/triage-scores.tsv`** — once applied, it should not appear in future morning-batch queues:
+3. **Remove the URL from `data/triage-scores.tsv`** — once applied, it should not appear in future find-jobs queues:
    ```bash
    awk -F'\t' -v url="$URL" 'NR==1 || $1 != url' data/triage-scores.tsv > data/triage-scores.tsv.tmp \
      && mv data/triage-scores.tsv.tmp data/triage-scores.tsv

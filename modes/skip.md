@@ -14,7 +14,7 @@ User provides one of:
 ### Step 1 — Resolve the input to a URL
 
 - If input is a URL: use as-is
-- If input is a row number: cross-reference the most recent `morning-batch` queue display in this session and pick the URL at that position. If no queue is in context, ask user to paste the URL or run `/get-the-job morning-batch` first.
+- If input is a row number: cross-reference the most recent `find-jobs` queue display in this session and pick the URL at that position. If no queue is in context, ask user to paste the URL or run `/get-the-job find-jobs` first.
 - If input is a substring: grep `data/triage-scores.tsv` for matching company + role. If exactly one match, use it. If multiple matches, list them and ask user to disambiguate.
 
 ### Step 2 — Locate the row

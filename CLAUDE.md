@@ -258,7 +258,7 @@ Default modes are in `modes/` (English). Additional language-specific modes are 
 | Batch processes offers | `batch` |
 | Asks about rejection patterns or wants to improve targeting | `patterns` |
 | Asks about follow-ups or application cadence | `followup` |
-| Manual Tue/Fri morning queue refresh (scan + triage + email) | `morning-batch` |
+| Find & score new jobs into the inbox (scan + triage + email) | `find-jobs` |
 | Lightweight per-URL scoring (no full report) | `triage` |
 | Remove a posting from the apply queue without applying | `skip` |
 

@@ -116,9 +116,27 @@ The dashboard finds, filters, and tracks jobs for free on plain Node. The **AI w
 4. **Review:** refresh the dashboard Inbox at [localhost:3737](http://localhost:3737) to see scored leads with verdict chips (Apply High / Apply / Skip). Filter and sort to find the best fits.
 5. **Shortlist → apply:** send a lead to your Pipeline, then `/get-the-job apply` generates a tailored resume, cover letter, and application answers for that role.
 
-> Tip: `/get-the-job morning-batch` runs steps 2–3 (scan + triage) in a single command.
+> Tip: `/get-the-job find-jobs` runs steps 2–3 (scan + triage) in a single command.
 
 > **Uploaded your resume as a PDF?** The AI reads `cv.md`, not the PDF. In your first Claude Code session, ask it to *“convert cv.pdf into cv.md”* before scoring.
+
+### When to run it — the 80/20 of timing
+
+You don't need to check for jobs every day. Two things about how hiring works let you get ~80% of the results from ~20% of the effort:
+
+1. **Postings go up on weekdays, almost never on weekends.** New roles cluster Monday–Thursday.
+2. **The first ~3 days matter most.** Applying while a posting is fresh — before the recruiter's inbox is buried — meaningfully improves your odds of being seen. Being early beats being polished-but-late.
+
+So the highest-leverage rhythm is **two well-timed runs a week**:
+
+- **Tuesday morning** — sweeps up the Monday posting surge.
+- **Friday morning** — sweeps up everything posted Tuesday through Thursday.
+
+Those two runs put you inside the early-applicant window for nearly every new posting, for a fraction of the effort of a daily grind. **That's the 80/20: two timed runs do most of the work.** The optional last 20% — if you're in an intense search and don't want to miss anything — is to run it **daily**.
+
+Click **🔍 Find New Jobs** in the Inbox (or run `/get-the-job find-jobs`) to do a full sweep: it scans your companies, scores every new posting against your profile, and drops the ranked results into your Inbox.
+
+> This is why the workflow was originally called *morning-batch* and defaulted to a Tuesday/Friday morning cadence. It's now the **Find New Jobs** button and runs whenever you click it — the Tue/Fri rhythm is a recommendation, not a fixed schedule.
 
 ## First-time setup (manual)
 

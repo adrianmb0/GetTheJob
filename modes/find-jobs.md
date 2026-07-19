@@ -1,6 +1,6 @@
-# Mode: morning-batch — Manual Tue/Fri Morning Pipeline
+# Mode: find-jobs — Find & Score New Jobs into the Inbox
 
-The user runs this manually on their chosen mornings (e.g. Tue + Fri). Orchestrates scan + triage + (optional) email so by the time they're ready to apply, the queue is fresh and ranked.
+The user runs this whenever they want fresh leads (e.g. once a day). Orchestrates scan + triage + (optional) email so by the time they're ready to apply, the inbox is fresh, scored, and ranked. This is the "scan on steroids" workflow — the low-level `scan` mode only dumps new URLs; this one also reads and scores each one.
 
 **Architecture choice:** Everything happens inside this active Claude Code session. No bash scripts. No `claude -p` headless. No launchd cron. The user invokes it manually; they can walk away while it runs and come back when it's done.
 
@@ -11,7 +11,7 @@ The user runs this manually on their chosen mornings (e.g. Tue + Fri). Orchestra
 Before doing anything, briefly state what you're about to do and the expected duration. Example:
 
 ```
-Running morning-batch:
+Running find-jobs:
   1. Scan portals for new postings (~30 sec, free)
   2. Triage new URLs (deep JD read + score, ~$0.05 each)
   3. Auto-purge triage entries >14 days old
@@ -172,7 +172,7 @@ If carried-over count > 0, gently remind the user:
 ### Step 8 — Final summary
 
 ```
-Morning-batch complete.
+Find-jobs complete.
 
 Scanned:      {N} new URLs added to pipeline.md
 Triaged:      {N} URLs scored ({M} APPLY-grade ≥4.0)
@@ -196,7 +196,7 @@ To remove from queue without applying:
 
 ---
 
-## What NOT to do in morning-batch
+## What NOT to do in find-jobs
 
 - Do NOT run full evaluations (those happen on-demand in `apply` mode)
 - Do NOT generate PDFs or cover letters
@@ -207,12 +207,11 @@ To remove from queue without applying:
 
 - **Scan fails:** Stop and report. Don't proceed to triage on stale pipeline.
 - **WebFetch returns generic page for some URLs:** Those get verdict `SUSPICIOUS` and a note; they don't block other URLs.
-- **User Ctrl-C mid-run:** Triage is append-only and per-URL; partial progress is preserved. Re-running morning-batch will skip already-triaged URLs.
+- **User Ctrl-C mid-run:** Triage is append-only and per-URL; partial progress is preserved. Re-running find-jobs will skip already-triaged URLs.
 
 ## When to run
 
-- **Tue 7:00 AM PT** — catches Mon AM posting surge
-- **Fri 7:00 AM PT** — catches Tue/Wed/Thu postings
-- **Ad hoc** — anytime user wants a fresh queue check
+- **Daily** — run it whenever you want a fresh inbox; once a day keeps leads current without over-scanning.
+- **Ad hoc** — anytime you want to check for new postings.
 
-The user runs this manually. There is no cron, scheduler, or background process.
+There's no fixed time — the "big button" in the Inbox runs it on demand. The user runs this manually; there is no cron, scheduler, or background process.

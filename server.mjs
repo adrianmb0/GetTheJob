@@ -2752,7 +2752,7 @@ function loadPipelineUrls() {
 
 // URLs known to be expired/closed, recorded by the liveness sweep in
 // batch/expired-urls.txt. Used to drop dead postings from the Inbox immediately,
-// so removal doesn't wait for the next morning batch to sweep triage-scores.tsv.
+// so removal doesn't wait for the next job search to sweep triage-scores.tsv.
 // Each line is either a bare URL or "URL<TAB>date<TAB>note"; the URL is column 0.
 function loadExpiredUrls() {
   const set = new Set();
@@ -3109,9 +3109,9 @@ ${guardrailsPanel()}
   const body = `
 <div id="batch-banner" class="batch-banner">
   <span id="batch-icon" class="batch-icon">⏳</span>
-  <span id="batch-msg" class="batch-msg">Morning batch running...</span>
+  <span id="batch-msg" class="batch-msg">Finding new jobs…</span>
   <span id="batch-elapsed" class="batch-elapsed"></span>
-  <button id="batch-run-btn" class="btn-batch" onclick="runBatch(this)" style="display:none">Run Morning Batch</button>
+  <button id="batch-run-btn" class="btn-batch" onclick="runBatch(this)" style="display:none">🔍 Find New Jobs</button>
 </div>
 <script>
 (function(){
@@ -3125,24 +3125,24 @@ ${guardrailsPanel()}
       let state='';
       if(d.running){
         state='is-running';icon.textContent='⏳';
-        msg.textContent='Morning batch running — results will refresh when complete…';
+        msg.textContent='Finding new jobs — results will refresh when complete…';
         runBtn.style.display='none';
         if(d.started){const m=Math.floor((Date.now()-new Date(d.started).getTime())/60000);elapsed.textContent=m+'m elapsed';}
       }else{
         // Not running. Build a base message from this session's last exit (if any).
         let base='';
-        if(d.exitCode===0){state='is-done';icon.textContent='✅';base='Morning batch complete — <a href="/?view=inbox&new=1">see the new leads</a>';}
-        else if(d.exitCode===143||d.exitCode===137){state='';icon.textContent='⏹';base='Morning batch stopped.';}
-        else if(d.exitCode!==null){state='is-failed';icon.textContent='⚠️';base='Morning batch failed (exit '+d.exitCode+'). Check the terminal for details.';}
+        if(d.exitCode===0){state='is-done';icon.textContent='✅';base='Found new jobs — <a href="/?view=inbox&new=1">see the new leads</a>';}
+        else if(d.exitCode===143||d.exitCode===137){state='';icon.textContent='⏹';base='Job search stopped.';}
+        else if(d.exitCode!==null){state='is-failed';icon.textContent='⚠️';base='Find New Jobs failed (exit '+d.exitCode+'). Check the terminal for details.';}
         if(d.cooldownActive){
           // Already searched in the last 24h — block, but offer an override.
           const hrs=Math.max(1,Math.ceil(d.cooldownRemainingMs/3600000));
-          if(!base){state='';icon.textContent='🌙';base='Morning batch already ran today — next run available in ~'+hrs+'h';}
+          if(!base){state='';icon.textContent='🌙';base='Already searched today — next run available in ~'+hrs+'h';}
           else{base+=' · next run in ~'+hrs+'h';}
-          runBtn.textContent='Override & run now';runBtn.dataset.override='1';
+          runBtn.textContent='Override & search now';runBtn.dataset.override='1';
         }else{
-          if(!base){state='';icon.textContent='💡';base='Morning batch available';}
-          runBtn.textContent=(d.exitCode!==null?'Run again':'Run Morning Batch');runBtn.dataset.override='';
+          if(!base){state='';icon.textContent='💡';base='<b>Find New Jobs</b> — scans your companies and scores new roles into your inbox. Run it daily.';}
+          runBtn.textContent=(d.exitCode!==null?'🔍 Find again':'🔍 Find New Jobs');runBtn.dataset.override='';
         }
         msg.innerHTML=base;runBtn.style.display='';elapsed.textContent='';done=true;
       }
@@ -3155,11 +3155,11 @@ ${guardrailsPanel()}
 function runBatch(btn){
   const override=btn.dataset.override==='1';
   const label=btn.textContent;
-  if(override&&!confirm('A morning batch already ran in the last 24 hours. Run another one now anyway?'))return;
+  if(override&&!confirm('You already searched for new jobs in the last 24 hours. Search again now anyway?'))return;
   btn.disabled=true;btn.textContent='Starting...';
   fetch('/api/run-batch'+(override?'?override=1':''),{method:'POST'}).then(r=>r.json()).then(d=>{
     if(d.ok)location.reload();
-    else{btn.disabled=false;btn.textContent=label;alert(d.error||'Could not start the batch.');}
+    else{btn.disabled=false;btn.textContent=label;alert(d.error||'Could not start the job search.');}
   }).catch(()=>{btn.disabled=false;btn.textContent=label;});
 }
 </script>
@@ -3284,7 +3284,7 @@ function sendJson(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
-// ----- Morning Batch (auto-runs on startup via claude CLI) -----
+// ----- Find New Jobs (auto-runs on startup via claude CLI) -----
 
 // Persisted across restarts so the 24h cooldown survives quitting/relaunching.
 const BATCH_STATE_FILE = join(ROOT, 'data', '.batch-state.json');
@@ -3298,7 +3298,7 @@ function writeBatchState(patch) {
   try {
     mkdirSync(join(ROOT, 'data'), { recursive: true });
     writeFileSync(BATCH_STATE_FILE, JSON.stringify(next, null, 2));
-  } catch (e) { console.log(`[morning-batch] could not persist state: ${e.message}`); }
+  } catch (e) { console.log(`[find-jobs] could not persist state: ${e.message}`); }
   return next;
 }
 // ms left before another batch is allowed; 0 means it can run now.
@@ -3310,11 +3310,11 @@ function batchCooldownRemainingMs() {
   return Math.max(0, BATCH_COOLDOWN_MS - elapsed);
 }
 
-function spawnMorningBatch() {
+function spawnFindJobs() {
   if (server._batchProc && !server._batchDone) return false;
   const claudeCheck = spawnSync('which', ['claude']);
   if (claudeCheck.status !== 0) {
-    console.log('[morning-batch] claude CLI not found in PATH, skipping');
+    console.log('[find-jobs] claude CLI not found in PATH, skipping');
     return false;
   }
   server._batchDone = false;
@@ -3327,7 +3327,7 @@ function spawnMorningBatch() {
   const proc = spawn('claude', [
     '-p',
     '--dangerously-skip-permissions',
-    'run /get-the-job morning-batch'
+    'run /get-the-job find-jobs'
   ], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
 
   server._batchProc = proc;
@@ -3344,15 +3344,15 @@ function spawnMorningBatch() {
     server._batchExit = code;
     server._batchFinished = new Date().toISOString();
     writeBatchState({ lastExit: code, lastFinished: server._batchFinished });
-    console.log(`[morning-batch] finished (exit ${code})`);
+    console.log(`[find-jobs] finished (exit ${code})`);
   });
   proc.on('error', (err) => {
     server._batchDone = true;
     server._batchExit = 1;
     server._batchFinished = new Date().toISOString();
-    console.log(`[morning-batch] error: ${err.message}`);
+    console.log(`[find-jobs] error: ${err.message}`);
   });
-  console.log(`[morning-batch] started`);
+  console.log(`[find-jobs] started`);
   return true;
 }
 
@@ -3663,9 +3663,9 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    // ----- Morning Batch API -----
+    // ----- Find New Jobs API -----
     if (pathname === '/api/run-batch' && req.method === 'POST') {
-      if (server._batchProc && !server._batchDone) return sendJson(res, 409, { ok: false, error: 'morning batch already running' });
+      if (server._batchProc && !server._batchDone) return sendJson(res, 409, { ok: false, error: 'job search already running' });
       const override = query.override === '1';
       const remaining = batchCooldownRemainingMs();
       if (remaining > 0 && !override) {
@@ -3674,10 +3674,10 @@ const server = createServer(async (req, res) => {
           cooldown: true,
           remainingMs: remaining,
           lastRun: readBatchState().lastRun || null,
-          error: 'Morning batch already ran in the last 24h. Override to run anyway.',
+          error: 'You already searched for new jobs in the last 24h. Override to run anyway.',
         });
       }
-      const started = spawnMorningBatch();
+      const started = spawnFindJobs();
       if (!started) return sendJson(res, 500, { ok: false, error: 'claude CLI not found' });
       return sendJson(res, 200, { ok: true, overridden: override && remaining > 0 });
     }
@@ -3756,24 +3756,24 @@ server.listen(PORT, () => {
   console.log(`  /apply?row=NNN                   apply pack (answers + CV + cover letter)`);
   console.log(`  /output?file=NAME.pdf            serve a generated PDF`);
 
-  // Auto-launch morning batch on startup (opt-in via AUTOSTART_BATCH=1).
+  // Auto-launch Find New Jobs on startup (opt-in via AUTOSTART_BATCH=1).
   // Defaults OFF so restarting the server never kicks off a surprise run;
   // the launcher scripts set AUTOSTART_BATCH=1 to preserve double-click behavior.
   if (process.env.AUTOSTART_BATCH === '1') {
     const remaining = batchCooldownRemainingMs();
     if (remaining > 0) {
       const hrs = (remaining / 3600000).toFixed(1);
-      console.log(`  [morning-batch] already ran within the last 24h — skipping auto-start (next in ${hrs}h). Override from the dashboard.`);
+      console.log(`  [find-jobs] already ran within the last 24h — skipping auto-start (next in ${hrs}h). Override from the dashboard.`);
     } else {
       const claudeCheck = spawnSync('which', ['claude']);
       if (claudeCheck.status === 0) {
-        console.log(`  [morning-batch] claude CLI found — auto-starting...`);
-        spawnMorningBatch();
+        console.log(`  [find-jobs] claude CLI found — auto-starting...`);
+        spawnFindJobs();
       } else {
-        console.log(`  [morning-batch] claude CLI not found — skipping auto-batch`);
+        console.log(`  [find-jobs] claude CLI not found — skipping auto-batch`);
       }
     }
   } else {
-    console.log(`  [morning-batch] auto-start off (set AUTOSTART_BATCH=1 to enable); use the Run Morning Batch button`);
+    console.log(`  [find-jobs] auto-start off (set AUTOSTART_BATCH=1 to enable); use the Find New Jobs button`);
   }
 });

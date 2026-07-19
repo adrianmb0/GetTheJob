@@ -3,7 +3,7 @@ name: get-the-job
 description: AI job search command center -- evaluate offers, generate CVs, scan portals, track applications
 user_invocable: true
 args: mode
-argument-hint: "[scan | deep | pdf | oferta | ofertas | apply | batch | tracker | pipeline | contacto | training | project | interview-prep | morning-batch | triage | skip | update]"
+argument-hint: "[scan | deep | pdf | oferta | ofertas | apply | batch | tracker | pipeline | contacto | training | project | interview-prep | find-jobs | triage | skip | update]"
 ---
 
 # get-the-job -- Router
@@ -30,7 +30,7 @@ Determine the mode from `{{mode}}`:
 | `batch` | `batch` |
 | `patterns` | `patterns` |
 | `followup` | `followup` |
-| `morning-batch` | `morning-batch` |
+| `find-jobs` | `find-jobs` |
 | `triage` | `triage` |
 | `skip` | `skip` |
 
@@ -63,7 +63,7 @@ Available commands:
   /get-the-job batch     → Batch processing with parallel workers
   /get-the-job patterns  → Analyze rejection patterns and improve targeting
   /get-the-job followup  → Follow-up cadence tracker: flag overdue, generate drafts
-  /get-the-job morning-batch → Manual Tue/Fri morning: scan + triage + email digest
+  /get-the-job find-jobs → Find & score new jobs into the inbox: scan + triage + email digest
   /get-the-job triage    → Lightweight per-URL scoring (no full report)
   /get-the-job skip      → Remove a posting from the apply queue without applying
 
@@ -80,7 +80,7 @@ After determining the mode, load the necessary files before executing:
 ### Modes that require `_shared.md` + their mode file:
 Read `modes/_shared.md` + `modes/{mode}.md`
 
-Applies to: `auto-pipeline`, `oferta`, `ofertas`, `pdf`, `contacto`, `apply`, `pipeline`, `scan`, `batch`, `morning-batch`, `triage`
+Applies to: `auto-pipeline`, `oferta`, `ofertas`, `pdf`, `contacto`, `apply`, `pipeline`, `scan`, `batch`, `find-jobs`, `triage`
 
 ### Standalone modes (only their mode file):
 Read `modes/{mode}.md`

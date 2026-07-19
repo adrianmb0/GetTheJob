@@ -1,6 +1,6 @@
 # Mode: triage — Lightweight Per-URL Scoring
 
-Per-URL scoring mode. Called by `morning-batch` to score new pipeline URLs cheaply. Does NOT produce a full A–G report; that happens later in `apply` mode if the user actually applies.
+Per-URL scoring mode. Called by `find-jobs` to score new pipeline URLs cheaply. Does NOT produce a full A–G report; that happens later in `apply` mode if the user actually applies.
 
 **Cost goal:** ~$0.05 per URL. Skip everything that isn't strictly needed to decide "is this worth applying to or not."
 
@@ -107,7 +107,7 @@ The full A–G report only gets generated in `apply` mode, IF the user actually 
 
 If the user later runs `/get-the-job apply <url>` on a triage-scored URL, the apply mode will trigger the full evaluation on demand.
 
-## Output to user when called directly (not from morning-batch)
+## Output to user when called directly (not from find-jobs)
 
 If a user invokes `/get-the-job triage <url>` manually, also print the row contents to chat after writing, so they can see what got recorded:
 
@@ -118,4 +118,4 @@ Score: {X.X}/5 — {verdict}
 Written to data/triage-scores.tsv
 ```
 
-When called from `morning-batch`, suppress this output (the batch runner aggregates and reports in summary form).
+When called from `find-jobs`, suppress this output (the batch runner aggregates and reports in summary form).
