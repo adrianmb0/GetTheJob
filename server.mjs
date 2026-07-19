@@ -567,13 +567,13 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .kc.is-new { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
 
 /* ----- pipeline board ----- */
-.board { display: grid; grid-template-columns: auto repeat(5, 1fr); gap: 12px; align-items: start; }
-@media (max-width: 1100px) { .board { grid-template-columns: repeat(3, 1fr); } .col-rejected, .col-rejected.collapsed { width: auto; } }
+.board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; align-items: start; }
+@media (max-width: 1100px) { .board { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 680px) { .board { grid-template-columns: 1fr; } }
 /* Rejected: collapsible leftmost rail. Header matches other columns; when
    collapsed, a stacked-card "peek" below hints there's hidden content. */
-.col-rejected { width: 220px; }
-.col-rejected.collapsed { width: 160px; min-height: 0; position: relative; }
+.col-rejected { position: relative; }
+.col-rejected.collapsed { min-height: 0; }
 .col-rejected.collapsed .col-body { display: none; }
 .col-h-toggle { cursor: pointer; user-select: none; }
 .col-h-toggle .chev { display: inline-block; transition: transform .15s ease; margin-right: 7px; font-size: 11px; color: var(--muted); }
@@ -592,7 +592,7 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .col-rejected.collapsed:hover .rej-peek-cap { opacity: .5; }
 /* floating preview that fades + slides in on hover — no board reflow */
 .rej-preview { display: none; }
-.col-rejected.collapsed .rej-preview { display: block; position: absolute; left: 8px; top: 44px; width: 248px; z-index: 40; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 28px rgba(0,0,0,.15); padding: 6px; opacity: 0; transform: translateY(-6px) scale(.98); transform-origin: top left; pointer-events: none; transition: opacity .18s ease, transform .22s cubic-bezier(.2,.7,.3,1); }
+.col-rejected.collapsed .rej-preview { display: block; position: absolute; left: 8px; right: 8px; top: 44px; z-index: 40; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 28px rgba(0,0,0,.15); padding: 6px; opacity: 0; transform: translateY(-6px) scale(.98); transform-origin: top left; pointer-events: none; transition: opacity .18s ease, transform .22s cubic-bezier(.2,.7,.3,1); }
 .col-rejected.collapsed:hover .rej-preview { opacity: 1; transform: translateY(0) scale(1); }
 .rej-pv-row { display: flex; align-items: center; gap: 8px; padding: 7px 6px; opacity: 0; transform: translateX(-4px); transition: opacity .2s ease, transform .2s ease; }
 .rej-pv-row + .rej-pv-row { border-top: 1px solid var(--border); }
@@ -1076,12 +1076,11 @@ function renderOnboarding(previewMode = false) {
       status: header.findIndex(h => /^status$/i.test(h)),
     };
     const COLS = [
-      { key: 'Rejected',    dot: '#B4534B',            statuses: ['Rejected'] },
-      { key: 'Reviewing',   dot: 'var(--neutral-ink)', statuses: ['Evaluated'] },
-      { key: 'Shortlisted', dot: '#C99A2E',            statuses: ['Shortlisted'] },
-      { key: 'Applied',     dot: 'var(--accent)',      statuses: ['Applied', 'Responded'] },
-      { key: 'Interview',   dot: '#8B5CF6',            statuses: ['Interview'] },
-      { key: 'Offer',       dot: '#3A6B45',            statuses: ['Offer'] },
+      { key: 'Rejected',    dot: '#B4534B',       statuses: ['Rejected'] },
+      { key: 'Shortlisted', dot: '#C99A2E',       statuses: ['Shortlisted', 'Evaluated'] },
+      { key: 'Applied',     dot: 'var(--accent)', statuses: ['Applied', 'Responded'] },
+      { key: 'Interview',   dot: '#8B5CF6',       statuses: ['Interview'] },
+      { key: 'Offer',       dot: '#3A6B45',       statuses: ['Offer'] },
     ];
     const CLOSED = ['Discarded', 'SKIP'];
     const miniCard = (r) => {
@@ -1214,7 +1213,7 @@ ${CSS}
 .ob-preview-tab { padding: 8px 20px; border: 1px solid var(--border); border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 13px; font-weight: 500; background: var(--row-alt); color: var(--muted); }
 .ob-preview-tab.active { background: #fff; color: var(--fg); border-bottom-color: #fff; position: relative; z-index: 1; }
 .ob-preview-panel { border: 1px solid var(--border); border-radius: 0 6px 6px 6px; background: var(--canvas); padding: 0; max-height: 340px; overflow: auto; position: relative; top: -1px; }
-.ob-preview-panel .board { grid-template-columns: repeat(6, minmax(140px, 1fr)); }
+.ob-preview-panel .board { grid-template-columns: repeat(5, minmax(140px, 1fr)); }
 .ob-preview-panel .col { min-height: 120px; }
 .ob-preview-panel .lead-list { background: var(--surface); }
 .ob-preview-panel .disabled-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; }
@@ -2407,19 +2406,20 @@ function renderPipeline(query) {
   const REJECTED_COL = { key: 'Rejected', dot: '#B4534B', statuses: ['Rejected'] };
   const COLS = [
     REJECTED_COL,
-    { key: 'Reviewing',   dot: 'var(--neutral-ink)', statuses: ['Evaluated'] },
-    { key: 'Shortlisted', dot: '#C99A2E',            statuses: ['Shortlisted'] },
-    { key: 'Applied',     dot: 'var(--accent)',      statuses: ['Applied', 'Responded'] },
-    { key: 'Interview',   dot: '#8B5CF6',            statuses: ['Interview'] },
-    { key: 'Offer',       dot: '#3A6B45',            statuses: ['Offer'] },
+    // Shortlisted + Evaluated share one column: both are "pulled into the pipeline,
+    // under review, not yet applied" — the same stage from the user's POV.
+    { key: 'Shortlisted', dot: '#C99A2E',       statuses: ['Shortlisted', 'Evaluated'] },
+    { key: 'Applied',     dot: 'var(--accent)', statuses: ['Applied', 'Responded'] },
+    { key: 'Interview',   dot: '#8B5CF6',       statuses: ['Interview'] },
+    { key: 'Offer',       dot: '#3A6B45',       statuses: ['Offer'] },
   ];
   const CLOSED = ['Discarded', 'SKIP'];
   const colOf = (status) => {
-    if (status === 'Evaluated') return 'Reviewing';
+    if (status === 'Evaluated') return 'Shortlisted';
     if (status === 'Responded') return 'Applied';
     if (CLOSED.includes(status)) return 'Closed';
     if (COLS.some(c => c.key === status)) return status;
-    return 'Reviewing';
+    return 'Shortlisted';
   };
 
   const card = (r) => {
