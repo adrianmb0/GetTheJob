@@ -639,6 +639,8 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .score-low  { background: var(--warn-bg); color: var(--warn-ink); }
 .score-skip { background: var(--neutral-bg); color: var(--neutral-ink); }
 .verdict-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-weight: 700; font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+/* Flat status flag (not a button): only shown for SUSPICIOUS/unverified leads. */
+.lead-flag { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--warn-ink); background: var(--warn-bg); padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
 .verdict-high  { background: var(--accent); color: var(--accent-ink); }
 .verdict-apply { background: var(--good-bg); color: var(--good-ink); }
 .verdict-skip  { background: var(--neutral-bg); color: var(--neutral-ink); }
@@ -1127,7 +1129,7 @@ function renderOnboarding(previewMode = false) {
           <div class="lead-role">${escapeHtml(r[idx.role] || '')}</div>
           <div class="lead-meta">${meta}</div>
         </div>
-        ${v ? `<span class="verdict-pill ${verdictClass(v)}">${escapeHtml(v)}</span>` : ''}
+        ${/^SUSPICIOUS/i.test(v) ? `<span class="lead-flag" title="Posting legitimacy unverified">⚠ unverified</span>` : ''}
         <div class="lead-act"><button class="btn-shortlist">→ Pipeline</button></div>
       </div>`;
     }).join('');
@@ -2509,7 +2511,7 @@ function renderPipeline(query) {
     <div class="sub">Everything you're actively pursuing, by stage. Drag a card between columns to move it forward — or click it to open the posting.</div>
   </div>
   <div class="tools">
-    ${newCount > 0 ? `<button class="chip-toggle" id="new-toggle" title="Added to your pipeline on the latest date (${escapeHtml(latestAdded)})">✨ New<span class="chip-count">${newCount}</span></button>` : ''}
+    ${newCount > 0 ? `<button class="chip-toggle" id="new-toggle" title="Added to your pipeline on the latest date (${escapeHtml(latestAdded)})">New<span class="chip-count">${newCount}</span></button>` : ''}
     <button class="btn-add-toggle" onclick="document.getElementById('add-form').classList.toggle('open')">+ Add role</button>
   </div>
 </div>
@@ -3062,7 +3064,7 @@ ${guardrailsPanel()}
         <div class="lead-role">${escapeHtml(role)}</div>
         <div class="lead-meta">${meta}</div>
       </div>
-      ${verdict ? `<span class="verdict-pill ${verdictClass(verdict)}">${escapeHtml(verdict)}</span>` : ''}
+      ${/^SUSPICIOUS/i.test(verdict) ? `<span class="lead-flag" title="Posting legitimacy unverified — check before applying">⚠ unverified</span>` : ''}
       <div class="lead-act">
         ${shortlistBtn}
         ${url ? `<button class="icon-btn icon-danger" title="Delete from inbox" onclick="dismissTriage('${escapeHtml(url)}', this)">🗑</button>` : ''}
@@ -3091,9 +3093,6 @@ ${guardrailsPanel()}
   const scoreBuckets = ['4.5+', '4.0-4.4', '3.5-3.9', '<3.5'];
 
   // Build dropdown option HTML for each filterable column (count placeholder updated client-side)
-  const verdictOpts = verdicts.map(v =>
-    `<label data-opt-value="${escapeHtml(v)}"><input type="checkbox" data-value="${escapeHtml(v)}"> <span class="verdict-pill ${verdictClass(v)}">${escapeHtml(v)}</span> <span class="opt-count"></span></label>`
-  ).join('');
   const scoreOpts = scoreBuckets.map(b =>
     `<label data-opt-value="${escapeHtml(b)}"><input type="checkbox" data-value="${escapeHtml(b)}"> ${escapeHtml(b)} <span class="opt-count"></span></label>`
   ).join('');
@@ -3177,9 +3176,8 @@ ${guardrailsPanel()}
   <div class="stat"><b>${freshCount}</b>new this week</div>
 </div>
 <div class="filter-bar">
-  ${newCount > 0 ? `<button class="chip-toggle" id="new-toggle" title="Leads from the latest scan (${escapeHtml(latestAdded)})">✨ New<span class="chip-count">${newCount}</span></button>` : ''}
+  ${newCount > 0 ? `<button class="chip-toggle" id="new-toggle" title="Leads from the latest scan (${escapeHtml(latestAdded)})">New<span class="chip-count">${newCount}</span></button>` : ''}
   <span class="col-filter" data-col="score-bucket">Score&nbsp;▾<div class="col-dropdown"><button class="col-dropdown-clear">Clear</button>${scoreOpts}</div></span>
-  <span class="col-filter" data-col="verdict">Verdict&nbsp;▾<div class="col-dropdown"><button class="col-dropdown-clear">Clear</button>${verdictOpts}</div></span>
   <span class="col-filter" data-col="company">Company&nbsp;▾<div class="col-dropdown"><button class="col-dropdown-clear">Clear</button>${companyOpts}</div></span>
   <span class="col-filter" data-col="location">Location&nbsp;▾<div class="col-dropdown col-dropdown-loc"><button class="col-dropdown-clear">Clear</button>${locationOpts}</div></span>
   <span class="sortctl">Sort <select id="inbox-sort"><option value="score-desc">Score: high → low</option><option value="score-asc">Score: low → high</option><option value="company">Company A–Z</option><option value="pay-desc">Pay: high → low</option><option value="posted-desc">Newest first</option></select></span>
@@ -3199,7 +3197,7 @@ ${guardrailsPanel()}
 })();
 (function() {
   const STORAGE_KEY = 'getthejob-triage-filters';
-  const filterKeys = ['verdict', 'score-bucket', 'company', 'location'];
+  const filterKeys = ['score-bucket', 'company', 'location'];
   const filters = {}; filterKeys.forEach(k => filters[k] = new Set());
   const rows = Array.from(document.querySelectorAll('#inbox-list .lead'));
   const total = rows.length;
