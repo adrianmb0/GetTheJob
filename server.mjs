@@ -494,6 +494,7 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .hsearch input::placeholder { color: var(--seg-ink); }
 .icon-btn { width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; font-size: 14px; display: inline-grid; place-items: center; }
 .icon-btn:hover { color: var(--ink); background: var(--row-hover); }
+.icon-btn.icon-danger:hover { color: var(--danger); border-color: var(--danger); }
 .app-header .icon-btn { background: var(--seg-track); color: var(--header-ink); border: 0; }
 .app-header .icon-btn:hover { background: rgba(125,125,125,.18); }
 
@@ -3047,9 +3048,6 @@ ${guardrailsPanel()}
     const shortlistBtn = url
       ? `<button class="btn-shortlist"${skipish ? ' style="background:transparent;border:1px solid var(--border);color:var(--muted)"' : ''} onclick='shortlistJob(${JSON.stringify({ url, company, role, score: scoreRaw, note }).replace(/'/g, "&apos;")}, this)' title="Move to Pipeline as Shortlisted (no evaluation yet)">→ Pipeline</button>`
       : '';
-    const openItem = url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">↗&nbsp; Open posting</a>` : '';
-    const dismissItem = url ? `<button class="danger" onclick="dismissTriage('${escapeHtml(url)}', this)">🗑&nbsp; Dismiss from inbox</button>` : '';
-
     const metaDate = firstSeen.trim() || datePosted;
     const meta = [
       location ? `<span>${escapeHtml(location)}</span>` : '',
@@ -3067,7 +3065,7 @@ ${guardrailsPanel()}
       ${verdict ? `<span class="verdict-pill ${verdictClass(verdict)}">${escapeHtml(verdict)}</span>` : ''}
       <div class="lead-act">
         ${shortlistBtn}
-        <div class="menu"><button class="icon-btn" title="More" onclick="toggleMenu(event, this)">⋯</button><div class="menu-pop">${openItem || '<span class="label">No URL on this lead</span>'}${dismissItem}</div></div>
+        ${url ? `<button class="icon-btn icon-danger" title="Delete from inbox" onclick="dismissTriage('${escapeHtml(url)}', this)">🗑</button>` : ''}
       </div>
     </div>`;
   }).join('');
