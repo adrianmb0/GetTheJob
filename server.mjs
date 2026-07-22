@@ -532,6 +532,7 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .lead { display: flex; align-items: center; gap: 16px; padding: 14px 18px; border-bottom: 1px solid var(--hairline); }
 .lead:last-child { border-bottom: 0; }
 .lead:hover { background: var(--row-hover); }
+.lead[data-url] { cursor: pointer; }
 .lead.is-hidden { display: none; }
 .lead-main { flex: 1 1 auto; min-width: 0; }
 .lead-co { font-weight: 680; font-size: 14.5px; letter-spacing: -.01em; }
@@ -3056,7 +3057,7 @@ ${guardrailsPanel()}
       metaDate ? `<span data-rel="${escapeHtml(metaDate)}" title="Added to your inbox ${escapeHtml(metaDate)}">${escapeHtml(metaDate)}</span>` : '',
     ].filter(Boolean).join('');
 
-    return `<div class="lead${isNew ? ' is-new' : ''}" data-verdict="${escapeHtml(verdict)}" data-score-bucket="${scoreBucket}" data-company="${escapeHtml(company)}" data-location="${escapeHtml(locGroup)}" data-score="${escapeHtml(scoreNum)}" data-pay="${comp.sortKey}" data-posted="${escapeHtml(datePosted)}" data-added="${escapeHtml(firstSeen)}" data-new="${isNew ? '1' : ''}" data-search="${searchStr}">
+    return `<div class="lead${isNew ? ' is-new' : ''}"${url ? ` data-url="${escapeHtml(url)}"` : ''} data-verdict="${escapeHtml(verdict)}" data-score-bucket="${scoreBucket}" data-company="${escapeHtml(company)}" data-location="${escapeHtml(locGroup)}" data-score="${escapeHtml(scoreNum)}" data-pay="${comp.sortKey}" data-posted="${escapeHtml(datePosted)}" data-added="${escapeHtml(firstSeen)}" data-new="${isNew ? '1' : ''}" data-search="${searchStr}">
       <div class="score-chip ${scoreClass(scoreRaw)}">${escapeHtml(scoreRaw || '—')}</div>
       <div class="lead-main">
         <div class="lead-co">${escapeHtml(company)}${isNew ? ' <span class="new-badge">NEW</span>' : ''}</div>
@@ -3188,6 +3189,16 @@ ${guardrailsPanel()}
 <div class="muted" id="inbox-summary" style="margin:0 0 12px;min-height:18px"></div>
 <div class="panel" id="inbox-list">${leadRows || '<div class="empty">No leads in the inbox.</div>'}</div>
 <script>
+// Click a lead row to open its posting (ignore clicks on the buttons/menu/links).
+(function() {
+  const list = document.getElementById('inbox-list');
+  if (!list) return;
+  list.addEventListener('click', e => {
+    if (e.target.closest('.menu') || e.target.closest('a') || e.target.closest('button')) return;
+    const lead = e.target.closest('.lead[data-url]');
+    if (lead && lead.dataset.url) window.open(lead.dataset.url, '_blank', 'noopener');
+  });
+})();
 (function() {
   const STORAGE_KEY = 'getthejob-triage-filters';
   const filterKeys = ['verdict', 'score-bucket', 'company', 'location'];
