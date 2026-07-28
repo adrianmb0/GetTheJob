@@ -471,8 +471,11 @@ body {
   -webkit-font-smoothing: antialiased;
   transition: background .2s ease, color .2s ease;
 }
-.container { max-width: 1180px; margin: 0 auto; padding: 26px 28px 64px; }
-.container.wide { max-width: 1320px; }
+/* One page width for the whole app: the header bar and the page content read
+   the same token, so the chrome lines up on every view and never reflows when
+   you switch tabs. Full-bleed pages (apply) just override the token. */
+body { --page-max: 1280px; }
+.container { max-width: var(--page-max); margin: 0 auto; padding: 26px 28px 64px; }
 a { color: var(--accent); }
 h1 { font-size: 23px; margin: 0 0 16px; letter-spacing: -.02em; font-weight: 730; }
 h2 { font-size: 17px; margin: 24px 0 8px; }
@@ -481,9 +484,9 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 
 /* ----- app header ----- */
 .app-header { position: sticky; top: 0; z-index: 30; background: var(--header-bg); color: var(--header-ink); border-bottom: 1px solid var(--border); }
-.app-header .bar { max-width: 1320px; margin: 0 auto; display: flex; align-items: center; gap: 16px; padding: 11px 28px; }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 750; font-size: 16px; letter-spacing: -.02em; color: var(--header-ink); text-decoration: none; }
-.brand .mark { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-size: 15px; box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+.app-header .bar { max-width: var(--page-max); margin: 0 auto; display: flex; align-items: center; gap: 16px; padding: 11px 28px; }
+.brand { display: flex; align-items: center; gap: 9px; font-weight: 750; font-size: 16px; letter-spacing: -.02em; color: var(--header-ink); text-decoration: none; }
+.brand .mark { display: grid; place-items: center; font-size: 17px; line-height: 1; }
 .app-header .spacer { flex: 1; }
 .seg { display: inline-flex; background: var(--seg-track); border-radius: 11px; padding: 3px; gap: 2px; }
 .seg a { font: inherit; font-size: 13px; font-weight: 600; color: var(--seg-ink); text-decoration: none; border-radius: 8px; padding: 7px 15px; display: inline-flex; align-items: center; gap: 7px; }
@@ -1032,7 +1035,7 @@ function shell(title, bodyHtml, nav = {}) {
 <body>
 <header class="app-header">
   <div class="bar">
-    <a class="brand" href="/?view=inbox"><span class="mark">💼</span> GetTheJob</a>
+    <a class="brand" href="/?view=inbox"><span class="mark">💼</span> Get The Job</a>
     <nav class="seg">
       ${seg('/?view=inbox', 'inbox', 'Inbox', inbox)}
       ${seg('/?view=pipeline', 'pipeline', 'Pipeline', pipeline)}
@@ -2279,8 +2282,11 @@ function renderApplyPack(query) {
 </div>
 
 <style>
-  /* widen container on the apply page so the answers fill the viewport */
-  main.container:has(.apply-answers-full) { max-width: none; padding-left: 32px; padding-right: 32px; }
+  /* full-bleed on the apply page so the answers fill the viewport — the header
+     bar reads the same token, so it stays aligned with the content */
+  body:has(.apply-answers-full) { --page-max: none; }
+  main.container:has(.apply-answers-full) { padding-left: 32px; padding-right: 32px; }
+  .app-header:has(~ main .apply-answers-full) .bar { padding-left: 32px; padding-right: 32px; }
   .apply-answers-full { max-width: none; }
   .apply-answers-full p, .apply-answers-full li { max-width: 90ch; }
   .apply-answers-full pre, .apply-answers-full .md-table { max-width: 100%; }
