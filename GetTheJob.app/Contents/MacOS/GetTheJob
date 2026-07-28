@@ -59,17 +59,23 @@ if [ ! -d "$APP_DIR/node_modules" ]; then
   exit 0
 fi
 
-# --- Normal cold start (deps present): start the server, then open the browser
-# once it actually answers (poll, not a fixed sleep, so onboarding never loads early). ---
-AUTOSTART_BATCH=1 node server.mjs &
+# --- Normal cold start (deps present): start the server DETACHED so this .app
+# process can exit immediately. If the .app itself stays alive (e.g. `wait`),
+# macOS treats the bundle as perpetually running and a Dock click just tries to
+# "focus" a windowless process — nothing opens. Detaching + exiting lets every
+# Dock click relaunch cleanly (fresh start, or the focus-browser branch above). ---
+LOG="$HOME/Library/Logs/GetTheJob.log"
+mkdir -p "$HOME/Library/Logs" 2>/dev/null
+nohup env AUTOSTART_BATCH=1 node server.mjs >"$LOG" 2>&1 &
 SERVER_PID=$!
+disown "$SERVER_PID" 2>/dev/null || true
+
+# Open the browser once the server actually answers (poll, not a fixed sleep,
+# so onboarding never loads early). Then exit — the server keeps running.
 for i in $(seq 1 60); do
   if curl -fsS -m 1 "$PING_URL" >/dev/null 2>&1; then open "$APP_URL"; break; fi
   kill -0 "$SERVER_PID" 2>/dev/null || break   # server died on boot → stop waiting
   sleep 0.5
 done
 
-# Tuck away the (usually hidden) Terminal if the OS surfaced one.
-osascript -e 'tell application "Terminal" to set miniaturized of front window to true' 2>/dev/null
-
-wait "$SERVER_PID"
+exit 0
