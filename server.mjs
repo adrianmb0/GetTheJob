@@ -667,32 +667,42 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .pack-link:hover { text-decoration: underline; }
 .btn-add-toggle { display: inline-flex; align-items: center; padding: 7px 13px; border: 1px dashed var(--border); border-radius: 999px; text-decoration: none; font-size: 12.5px; font-weight: 600; color: var(--accent); background: var(--surface); cursor: pointer; }
 .btn-add-toggle:hover { border-color: var(--accent); }
+/* Scoring-rules disclosure. Deliberately NOT a dashed pill — dashed pills read
+   as "add a new thing" (see .btn-add-toggle). This expands a panel, so it is a
+   plain secondary button with a caret that flips while the panel is open. */
+.btn-rules { display: inline-flex; align-items: center; gap: 8px; font-family: inherit; font-size: 13px; font-weight: 600; line-height: 1.2; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 9px 14px; cursor: pointer; }
+.btn-rules:hover { background: var(--row-hover); border-color: var(--muted); }
+.btn-rules .caret { font-size: 10px; color: var(--muted); transition: transform .15s ease; }
+.btn-rules.is-open { border-color: var(--accent); color: var(--accent); background: var(--accent-weak); }
+.btn-rules.is-open .caret { transform: rotate(180deg); color: var(--accent); }
 .add-form { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; margin: 0 0 16px; }
 .add-form.open { display: block; }
 .add-form .add-row { display: flex; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
 .add-form input[type=url], .add-form input[type=text] { padding: 9px 12px; border: 1px solid var(--border); border-radius: 9px; font-size: 13.5px; font-family: inherit; background: var(--surface); color: var(--ink); }
 .add-form input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
-.rules-panel { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin: 0 0 16px; }
+/* Two columns so Hard and Soft stack side by side — the panel's height is then
+   the taller group, not the sum of both. Collapses to one column when narrow. */
+.rules-panel { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin: 0 0 16px; }
 .rules-panel.open { display: block; }
-.rules-head { margin-bottom: 12px; }
-.rules-head strong { font-size: 14px; }
-.rules-head .muted { display: block; font-size: 12px; margin-top: 3px; line-height: 1.5; }
-.rules-group { margin-bottom: 16px; }
-.rules-group-h { font-size: 13px; font-weight: 600; margin-bottom: 9px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+/* Hard gets the wider column: its rules are long prose, Soft's are one-liners.
+   An even split made the hard rules wrap enough to cancel out the saving. */
+.rules-cols { display: grid; grid-template-columns: 1.7fr 1fr; gap: 8px 18px; align-items: start; }
+@media (max-width: 900px) { .rules-cols { grid-template-columns: 1fr; } }
+.rules-group-h { font-size: 13px; font-weight: 600; margin-bottom: 7px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .rules-group-h .rg-sub { font-weight: 400; color: var(--muted); font-size: 12px; }
 .rg-badge { font-size: 10.5px; font-weight: 700; letter-spacing: .02em; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; }
 .rg-badge.hard { background: rgba(180,65,60,.13); color: #b4413c; }
 .rg-badge.soft { background: rgba(201,154,46,.18); color: #946f16; }
-.rule-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: flex-start; }
-.rule-row input, .rule-row textarea { flex: 1; padding: 10px 12px 10px 13px; border: 1px solid var(--border); border-left-width: 3px; border-radius: 9px; font-size: 13.5px; font-family: inherit; line-height: 1.5; background: var(--canvas); color: var(--ink); }
-.rule-row textarea { resize: none; overflow: hidden; min-height: 40px; }
+.rule-row { display: flex; gap: 6px; margin-bottom: 6px; align-items: flex-start; }
+.rule-row input, .rule-row textarea { flex: 1; padding: 7px 10px 7px 11px; border: 1px solid var(--border); border-left-width: 3px; border-radius: 8px; font-size: 13px; font-family: inherit; line-height: 1.45; background: var(--canvas); color: var(--ink); }
+.rule-row textarea { resize: none; overflow: hidden; min-height: 33px; }
 #guard-hard .rule-row textarea { border-left-color: #d08b86; }
 #guard-soft .rule-row textarea { border-left-color: #d6b873; }
 .rule-row input:focus, .rule-row textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
-.rule-del { flex: 0 0 auto; width: 36px; height: 38px; border: 1px solid var(--border); background: transparent; border-radius: 9px; cursor: pointer; color: var(--muted); font-size: 17px; line-height: 1; }
+.rule-del { flex: 0 0 auto; width: 30px; height: 33px; border: 1px solid var(--border); background: transparent; border-radius: 8px; cursor: pointer; color: var(--muted); font-size: 15px; line-height: 1; }
 .rule-del:hover { border-color: #b4413c; color: #b4413c; }
-.rules-actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
-.btn-add-row { background: transparent; border: 1px dashed var(--border); border-radius: 9px; padding: 8px 12px; cursor: pointer; font-size: 13px; color: var(--ink); }
+.rules-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.btn-add-row { background: transparent; border: 1px dashed var(--border); border-radius: 8px; padding: 6px 11px; cursor: pointer; font-size: 12.5px; color: var(--muted); }
 .btn-add-row:hover { border-color: var(--accent); color: var(--accent); }
 .btn-save { background: var(--accent); color: #fff; border: none; border-radius: 9px; padding: 8px 18px; cursor: pointer; font-size: 13px; font-weight: 600; }
 .btn-save:hover { opacity: .9; }
@@ -786,6 +796,8 @@ function toggleGuardrails() {
   const panel = document.getElementById('guardrails-panel');
   if (!panel) return;
   const open = panel.classList.toggle('open');
+  const btn = document.getElementById('rules-toggle');
+  if (btn) { btn.classList.toggle('is-open', open); btn.setAttribute('aria-expanded', open ? 'true' : 'false'); }
   if (open && !guardrailsLoaded) loadGuardrails();
 }
 async function loadGuardrails() {
@@ -2919,20 +2931,21 @@ function writeGuardrails(hard, soft) {
 
 // Inbox UI snippet: the "Scoring rules" toggle button + the editor panel.
 function guardrailsUI() {
-  return `<button class="btn-add-toggle" onclick="toggleGuardrails()">⚙&nbsp; Scoring rules</button>`;
+  return `<button id="rules-toggle" class="btn-rules" aria-expanded="false" aria-controls="guardrails-panel" onclick="toggleGuardrails()" title="Hard exclusions and soft penalties applied when postings are scored">⚖<span>Scoring rules</span><span class="caret">▾</span></button>`;
 }
 function guardrailsPanel(open) {
   return `<div id="guardrails-panel" class="rules-panel${open ? ' open' : ''}">
-  <div class="rules-head"><strong>Your scoring rules</strong><span class="muted">Two kinds, applied on the next scoring run. <b>Hard</b> = drop the posting entirely. <b>Soft</b> = keep it, just push its score down.</span></div>
-  <div class="rules-group">
-    <div class="rules-group-h"><span class="rg-badge hard">Hard</span> Exclude entirely <span class="rg-sub">— auto-skip, score 1.0, never shown</span></div>
-    <div id="guard-hard" class="rule-list"></div>
-    <button type="button" class="btn-add-row" onclick="addRuleRow('hard','',true)">+ Add hard exclusion</button>
-  </div>
-  <div class="rules-group">
-    <div class="rules-group-h"><span class="rg-badge soft">Soft</span> Weight the score down <span class="rg-sub">— still shown, just ranked lower</span></div>
-    <div id="guard-soft" class="rule-list"></div>
-    <button type="button" class="btn-add-row" onclick="addRuleRow('soft','',true)">+ Add soft penalty</button>
+  <div class="rules-cols">
+    <div>
+      <div class="rules-group-h"><span class="rg-badge hard">Hard</span> Exclude entirely <span class="rg-sub">— auto-skip, never shown</span></div>
+      <div id="guard-hard" class="rule-list"></div>
+      <button type="button" class="btn-add-row" onclick="addRuleRow('hard','',true)">+ Add hard exclusion</button>
+    </div>
+    <div>
+      <div class="rules-group-h"><span class="rg-badge soft">Soft</span> Weight the score down <span class="rg-sub">— still shown, ranked lower</span></div>
+      <div id="guard-soft" class="rule-list"></div>
+      <button type="button" class="btn-add-row" onclick="addRuleRow('soft','',true)">+ Add soft penalty</button>
+    </div>
   </div>
   <div class="rules-actions">
     <button type="button" class="btn-save" id="guardrails-save" onclick="saveGuardrails(this)">Save</button>
@@ -2985,7 +2998,8 @@ function renderInbox(query) {
   const path = join(ROOT, 'data', 'triage-scores.tsv');
   if (!existsSync(path)) {
     return shell('Inbox',
-      `<div class="toolbar"><div><h1>Inbox</h1></div><div class="tools">${guardrailsUI()}</div></div>
+      `<div class="toolbar"><div><h1>Inbox</h1></div></div>
+<div class="stats-row">${guardrailsUI()}</div>
 ${guardrailsPanel()}
 <div class="empty" style="line-height:1.6">No scored leads yet.<br>1. Find jobs — run a scan (<code>npm run scan</code> or the scan button).<br>2. Score them — open this project in <b>Claude Code</b> and run <code>/get-the-job triage</code>.<br>Scored postings show up here.<br><span style="font-size:12.5px">Tip: set your scoring rules above first — hard exclusions to drop postings, soft penalties to rank them down.</span></div>`,
       { view: 'inbox', ...getCounts() });
