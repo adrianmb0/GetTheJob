@@ -527,9 +527,7 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .btn-ghost:hover { background: var(--row-hover); }
 
 /* ----- stat strip ----- */
-.stats { display: flex; gap: 9px; margin-bottom: 16px; flex-wrap: wrap; }
-.stat { background: var(--surface); border: 1px solid var(--border); border-radius: 11px; padding: 9px 15px; font-size: 12.5px; color: var(--muted); }
-.stat b { color: var(--ink); font-size: 15px; font-weight: 730; margin-right: 6px; }
+.stats-row { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
 
 /* ----- inbox list ----- */
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
@@ -546,7 +544,11 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .lead-act { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
 
 /* ----- filter bar (reuses col-filter/col-dropdown JS) ----- */
-.filter-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; flex-wrap: wrap; }
+/* Same 16px rhythm as .stats-row above it — the "N of M shown" summary now
+   lives inside this bar rather than in a spacer row underneath it. */
+.filter-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; flex-wrap: wrap; }
+.filter-bar #inbox-summary { font-size: 12.5px; margin-left: 4px; }
+.filter-bar #inbox-summary:empty { display: none; }
 .col-filter { position: relative; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; font-size: 12.5px; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 7px 13px; }
 .col-filter:hover { border-color: var(--accent); }
 .col-filter.filtered { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
@@ -706,20 +708,28 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .btn-set:hover { opacity: .9; }
 .row-deleting { opacity: 0; transition: opacity 0.2s; }
 
-/* ----- batch banner ----- */
+/* ----- scan control (lives on the stats row, right-aligned) ----- */
 .btn-batch { background: var(--accent); color: var(--accent-ink); border: 0; padding: 8px 16px; border-radius: 10px; font-size: 13px; cursor: pointer; font-weight: 600; font-family: inherit; transition: opacity .15s ease; }
 .btn-batch:hover { opacity: .92; }
 .btn-batch:disabled { opacity: .55; cursor: default; }
-.batch-banner { display: none; align-items: center; gap: 10px; padding: 11px 16px; margin-bottom: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--ink); font-size: 14px; transition: background .2s ease, color .2s ease; }
+.row-actions { display: flex; align-items: center; gap: 14px; margin-left: auto; flex-wrap: wrap; }
+/* Ambient figures that sit beside a control row, not chips you can click. */
+.row-meta { font-size: 12.5px; color: var(--muted); margin-left: 4px; }
+.row-meta b { color: var(--ink); font-weight: 730; }
+.batch-banner { display: none; align-items: center; gap: 9px; font-size: 13px; color: var(--muted); }
 .batch-banner.show { display: flex; }
-.batch-banner .batch-icon { font-size: 15px; line-height: 1; flex-shrink: 0; }
-.batch-banner .batch-msg { font-weight: 600; }
-.batch-banner .batch-elapsed { opacity: .65; font-size: 13px; }
+.batch-banner .batch-icon { font-size: 14px; line-height: 1; flex-shrink: 0; }
+.batch-banner .batch-icon:empty { display: none; }
+.batch-banner .batch-msg { font-weight: 600; color: var(--ink); }
+.batch-banner .batch-msg:empty { display: none; }
+/* "Last search 4h ago" is ambient info, not a status alert — keep it quiet. */
+.batch-banner .batch-msg.meta { font-weight: 500; color: var(--muted); }
+.batch-banner .batch-elapsed { opacity: .65; }
 .batch-banner a { color: var(--accent); font-weight: 700; text-decoration: underline; }
-.batch-banner .btn-batch { margin-left: auto; }
-.batch-banner.is-running { background: var(--mid-bg); border-color: transparent; color: var(--mid-ink); }
-.batch-banner.is-done    { background: var(--good-bg); border-color: transparent; color: var(--good-ink); }
-.batch-banner.is-failed  { background: var(--warn-bg); border-color: transparent; color: var(--warn-ink); }
+/* state reads from the status text now — no full-width coloured bar above the page */
+.batch-banner.is-running .batch-msg { color: var(--mid-ink); }
+.batch-banner.is-done    .batch-msg { color: var(--good-ink); }
+.batch-banner.is-failed  .batch-msg { color: var(--warn-ink); }
 
 /* ----- markdown / report ----- */
 .report-body { background: var(--surface); padding: 28px 32px; border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); }
@@ -3012,18 +3022,11 @@ ${guardrailsPanel()}
     return sb - sa;
   });
 
-  // Stat strip figures
-  const now = Date.now();
-  const WEEK = 7 * 24 * 3600 * 1000;
-  let strongCount = 0; const tops = []; let freshCount = 0;
+  // Median top-of-band pay across the leads that advertise a range.
+  const tops = [];
   sorted.forEach(r => {
-    const sc = parseFloat(r[idx.score]);
-    if (!Number.isNaN(sc) && sc >= 4.0) strongCount++;
     const top = Number(extractComp(r[idx.note] || '').sortKey) || 0;
     if (top > 0) tops.push(top);
-    const seen = r[idx.added] || scanHistory.get(r[idx.url] || '') || '';
-    const t = Date.parse(seen);
-    if (!Number.isNaN(t) && now - t <= WEEK) freshCount++;
   });
   const medianTop = tops.length ? tops.slice().sort((a, b) => a - b)[Math.floor(tops.length / 2)] : 0;
 
@@ -3111,43 +3114,65 @@ ${guardrailsPanel()}
   ).join('');
 
   const body = `
-<div id="batch-banner" class="batch-banner">
-  <span id="batch-icon" class="batch-icon">⏳</span>
-  <span id="batch-msg" class="batch-msg">Finding new jobs…</span>
-  <span id="batch-elapsed" class="batch-elapsed"></span>
-  <button id="batch-run-btn" class="btn-batch" onclick="runBatch(this)" style="display:none">🔍 Find New Jobs</button>
+<div class="toolbar">
+  <div>
+    <h1>Inbox</h1>
+    <div class="sub">Open roles the scanner found and scored against your profile. Send the strong ones to your pipeline.</div>
+  </div>
 </div>
+<div class="stats-row">
+  ${guardrailsUI()}
+  <div class="row-actions">
+    <div id="batch-banner" class="batch-banner">
+      <span id="batch-icon" class="batch-icon">⏳</span>
+      <span id="batch-msg" class="batch-msg">Finding new jobs…</span>
+      <span id="batch-elapsed" class="batch-elapsed"></span>
+    </div>
+    <button id="batch-run-btn" class="btn-batch" onclick="runBatch(this)" style="display:none" title="Scans your companies and scores new roles into your inbox. Run it daily.">🔍 Find New Jobs</button>
+  </div>
+</div>
+${guardrailsPanel()}
 <script>
 (function(){
   const banner=document.getElementById('batch-banner'),icon=document.getElementById('batch-icon'),
     msg=document.getElementById('batch-msg'),elapsed=document.getElementById('batch-elapsed'),
     runBtn=document.getElementById('batch-run-btn');
   let done=false;
+  function ago(iso){
+    const ms=Date.now()-new Date(iso).getTime();
+    if(!isFinite(ms)||ms<0)return 'just now';
+    const m=Math.floor(ms/60000);
+    if(m<1)return 'just now';
+    if(m<60)return m+'m ago';
+    const h=Math.floor(m/60);
+    if(h<24)return h+'h ago';
+    const dys=Math.floor(h/24);
+    return dys===1?'yesterday':dys+'d ago';
+  }
   async function poll(){
     try{
       const d=await(await fetch('/api/batch-status')).json();
       let state='';
       if(d.running){
         state='is-running';icon.textContent='⏳';
-        msg.textContent='Finding new jobs — results will refresh when complete…';
+        msg.textContent='Finding new jobs…';
         runBtn.style.display='none';
-        if(d.started){const m=Math.floor((Date.now()-new Date(d.started).getTime())/60000);elapsed.textContent=m+'m elapsed';}
+        if(d.started){const m=Math.floor((Date.now()-new Date(d.started).getTime())/60000);elapsed.textContent=m+'m';}
       }else{
         // Not running. Build a base message from this session's last exit (if any).
-        let base='';
-        if(d.exitCode===0){state='is-done';icon.textContent='✅';base='Found new jobs — <a href="/?view=inbox&new=1">see the new leads</a>';}
-        else if(d.exitCode===143||d.exitCode===137){state='';icon.textContent='⏹';base='Job search stopped.';}
-        else if(d.exitCode!==null){state='is-failed';icon.textContent='⚠️';base='Find New Jobs failed (exit '+d.exitCode+'). Check the terminal for details.';}
-        if(d.cooldownActive){
-          // Already searched in the last 24h — block, but offer an override.
-          const hrs=Math.max(1,Math.ceil(d.cooldownRemainingMs/3600000));
-          if(!base){state='';icon.textContent='🌙';base='Already searched today — next run available in ~'+hrs+'h';}
-          else{base+=' · next run in ~'+hrs+'h';}
-          runBtn.textContent='Override & search now';runBtn.dataset.override='1';
-        }else{
-          if(!base){state='';icon.textContent='💡';base='<b>Find New Jobs</b> — scans your companies and scores new roles into your inbox. Run it daily.';}
-          runBtn.textContent=(d.exitCode!==null?'🔍 Find again':'🔍 Find New Jobs');runBtn.dataset.override='';
-        }
+        // Copy is kept short — this sits inline next to the stats, not in a full-width bar.
+        let base='',meta=false;
+        if(d.exitCode===0){state='is-done';icon.textContent='✅';base='Found new jobs — <a href="/?view=inbox&new=1">see them</a>';}
+        else if(d.exitCode===143||d.exitCode===137){state='';icon.textContent='⏹';base='Search stopped';}
+        else if(d.exitCode!==null){state='is-failed';icon.textContent='⚠️';base='Search failed (exit '+d.exitCode+')';}
+        // Nothing to report from this session — show when the last search ran.
+        // (Reads better than a countdown to when the next one is allowed.)
+        if(!base){icon.textContent='';if(d.lastRun){base='Last search '+ago(d.lastRun);meta=true;}}
+        // The label is always the same — one button, one job. Cooldown only flips the
+        // override flag, and the confirm dialog is where the 24h rule gets explained.
+        runBtn.textContent='🔍 Find New Jobs';
+        runBtn.dataset.override=d.cooldownActive?'1':'';
+        msg.className='batch-msg'+(meta?' meta':'');
         msg.innerHTML=base;runBtn.style.display='';elapsed.textContent='';done=true;
       }
       banner.className='batch-banner show'+(state?' '+state:'');
@@ -3167,28 +3192,15 @@ function runBatch(btn){
   }).catch(()=>{btn.disabled=false;btn.textContent=label;});
 }
 </script>
-<div class="toolbar">
-  <div>
-    <h1>Inbox</h1>
-    <div class="sub">Open roles the scanner found and scored against your profile. Send the strong ones to your pipeline.</div>
-  </div>
-  <div class="tools">${guardrailsUI()}</div>
-</div>
-${guardrailsPanel()}
-<div class="stats">
-  <div class="stat"><b>${sorted.length}</b>leads</div>
-  <div class="stat"><b>${strongCount}</b>strong (4.0+)</div>
-  ${medianTop ? `<div class="stat"><b>$${medianTop}K</b>median top pay</div>` : ''}
-  <div class="stat"><b>${freshCount}</b>new this week</div>
-</div>
 <div class="filter-bar">
   ${newCount > 0 ? `<button class="chip-toggle" id="new-toggle" title="Leads from the latest scan (${escapeHtml(latestAdded)})">New<span class="chip-count">${newCount}</span></button>` : ''}
   <span class="col-filter" data-col="score-bucket">Score&nbsp;▾<div class="col-dropdown"><button class="col-dropdown-clear">Clear</button>${scoreOpts}</div></span>
   <span class="col-filter" data-col="company">Company&nbsp;▾<div class="col-dropdown"><button class="col-dropdown-clear">Clear</button>${companyOpts}</div></span>
   <span class="col-filter" data-col="location">Location&nbsp;▾<div class="col-dropdown col-dropdown-loc"><button class="col-dropdown-clear">Clear</button>${locationOpts}</div></span>
+  ${medianTop ? `<span class="row-meta" title="Median of the top of each advertised pay band"><b>$${medianTop}K</b> median pay</span>` : ''}
+  <span class="muted" id="inbox-summary"></span>
   <span class="sortctl">Sort <select id="inbox-sort"><option value="score-desc">Score: high → low</option><option value="score-asc">Score: low → high</option><option value="company">Company A–Z</option><option value="pay-desc">Pay: high → low</option><option value="posted-desc">Newest first</option></select></span>
 </div>
-<div class="muted" id="inbox-summary" style="margin:0 0 12px;min-height:18px"></div>
 <div class="panel" id="inbox-list">${leadRows || '<div class="empty">No leads in the inbox.</div>'}</div>
 <script>
 // Click a lead row to open its posting (ignore clicks on the buttons/menu/links).
