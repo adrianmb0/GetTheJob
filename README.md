@@ -77,7 +77,7 @@ Just **click `GetTheJob.app`** again (or run `npm start` in the folder) and open
 
 | Feature | How |
 |---------|-----|
-| **Scan** job boards for new postings | `npm run scan` — hits Greenhouse, Ashby, Lever APIs and more |
+| **Scan** job boards for new postings | `npm run scan` — hits Greenhouse, Ashby, Lever and VC portfolio-board APIs and more |
 | **Dashboard** to view, filter, and sort results | `npm start` → localhost:3737 |
 | **Triage** — score postings against your profile | Automated scoring with AI evaluation |
 | **Apply Packs** — tailored resume + cover letter + answers | Generated per role, ready to copy-paste |
@@ -156,7 +156,7 @@ Click **🔍 Find New Jobs** in the Inbox (or run `/get-the-job find-jobs`) to d
 ```
 GetTheJob/
   server.mjs              Dashboard server (tracker, triage, onboarding)
-  scan.mjs                Portal scanner (Greenhouse, Ashby, Lever APIs)
+  scan.mjs                Portal scanner (Greenhouse, Ashby, Lever, Consider APIs)
   check-liveness.mjs      Verify postings are still active
   generate-pdf.mjs        HTML-to-PDF CV generator (Playwright)
   modes/                  Evaluation and workflow instructions
