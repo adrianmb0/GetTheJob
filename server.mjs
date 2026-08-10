@@ -1068,7 +1068,10 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .btn-batch { background: var(--accent); color: var(--accent-ink); border: 0; padding: 8px 16px; border-radius: 10px; font-size: 13px; cursor: pointer; font-weight: 600; font-family: inherit; transition: opacity .15s ease; }
 .btn-batch:hover { opacity: .92; }
 .btn-batch:disabled { opacity: .55; cursor: default; }
-.row-actions { display: flex; align-items: center; gap: 14px; margin-left: auto; flex-wrap: wrap; }
+.row-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+/* Scoring rules now sits on the right of the row, so it carries the auto margin
+   that used to push .row-actions over. */
+.stats-row .btn-rules { margin-left: auto; }
 /* Ambient figures that sit beside a control row, not chips you can click. */
 .row-meta { font-size: 12.5px; color: var(--muted); margin-left: 4px; }
 .row-meta b { color: var(--ink); font-weight: 730; }
@@ -4274,7 +4277,6 @@ ${guardrailsPanel()}
   </div>
 </div>
 <div class="stats-row">
-  ${guardrailsUI()}
   <div class="row-actions">
     <div id="batch-banner" class="batch-banner">
       <span id="batch-icon" class="batch-icon">⏳</span>
@@ -4283,6 +4285,7 @@ ${guardrailsPanel()}
     </div>
     <button id="batch-run-btn" class="btn-batch" onclick="runBatch(this)" style="display:none" title="Scans your companies and scores new roles into your inbox. Run it daily.">🔍 Find New Jobs</button>
   </div>
+  ${guardrailsUI()}
 </div>
 ${guardrailsPanel()}
 <script>
