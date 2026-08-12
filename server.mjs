@@ -956,6 +956,14 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .rej-pv-txt { font-size: 12px; color: var(--fg); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
 .rej-pv-txt b { font-weight: 680; }
 .rej-pv-more { text-align: center; font-size: 10.5px; color: var(--muted); padding: 5px 0 2px; }
+/* Subsections inside the Rejected rail: interviewed-then-rejected sits on top,
+   marked warm, because those companies met him and can be re-approached. */
+.rej-sec + .rej-sec { margin-top: 12px; }
+.rej-sec-h { display: flex; align-items: center; gap: 7px; font-size: 10.5px; font-weight: 720; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding: 0 2px 7px; }
+.rej-sec-h::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.rej-sec-c { order: 3; font-weight: 730; font-size: 10px; color: var(--muted); background: var(--neutral-bg); border-radius: 999px; padding: 1px 7px; }
+.rej-sec-warm { color: #B4534B; }
+.rej-sec-warm::after { background: rgba(180, 83, 75, .28); }
 .col { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 11px; min-height: 180px; }
 .col.drop-target { outline: 2px dashed var(--accent); outline-offset: -4px; background: var(--accent-weak); }
 .closed-lane.drop-target { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 10px; background: var(--accent-weak); }
@@ -3359,6 +3367,26 @@ function deleteRowFromTracker(numRaw) {
   return { ok: true };
 }
 
+// Did this role ever reach an interview? Status changes are appended to the
+// notes ("interview 2026-07-24 via dashboard", "moved to Interview"), so the
+// notes are the history we have. Negated mentions ("no interview") don't count.
+function reachedInterview(note) {
+  const s = String(note || '').toLowerCase();
+  for (const marker of ['interview', 'entrevista']) {
+    let idx = 0;
+    for (;;) {
+      const at = s.indexOf(marker, idx);
+      if (at < 0) break;
+      const before = s.slice(0, at).trimEnd();
+      const negated = ['no', 'not', 'never', 'without', 'pre', 'declined']
+        .some(neg => before === neg || before.endsWith(' ' + neg));
+      if (!negated) return true;
+      idx = at + marker.length;
+    }
+  }
+  return false;
+}
+
 // ----- apply pack helpers -----
 
 // Find a data/apply/{num}-*.md file for a given tracker row number.
@@ -3378,13 +3406,20 @@ function findApplyPackForRow(num) {
 // Returns {cv, cover} (filenames only, no path).
 function findOutputPdfsFromPack(md) {
   const out = { cv: null, cover: null };
-  // Match output/<file>.pdf in any link target. Strip any "../../" prefix.
-  const re = /output\/((?:cv|cover)-[a-zA-Z0-9._-]+\.pdf)/g;
+  // Match output/<file>.pdf, or output/<per-job folder>/<file>.pdf, in any link
+  // target. Strip any "../../" prefix. Two naming conventions are in play: the
+  // older flat cv-*.pdf / cover-*.pdf, and the current per-job folders holding
+  // AdrianMeloResume{Company}.pdf / AdrianMeloCL{Company}.pdf.
+  const re = /output\/((?:[a-zA-Z0-9._-]+\/)?[a-zA-Z0-9._-]+\.pdf)/g;
   let m;
   while ((m = re.exec(md)) !== null) {
-    const file = m[1];
-    if (file.startsWith('cv-') && !out.cv) out.cv = file;
-    if (file.startsWith('cover-') && !out.cover) out.cover = file;
+    const rel = m[1];
+    if (rel.includes('..')) continue;
+    const base = rel.slice(rel.lastIndexOf('/') + 1);
+    const isCv = /^cv-/i.test(base) || /resume/i.test(base);
+    const isCover = /^cover-/i.test(base) || /cover.?letter/i.test(base) || /CL[A-Z]/.test(base);
+    if (isCv && !isCover && !out.cv) out.cv = rel;
+    else if (isCover && !out.cover) out.cover = rel;
   }
   // Fallback: if file exists in output/, keep it; otherwise null it
   for (const k of ['cv', 'cover']) {
@@ -3525,12 +3560,21 @@ document.addEventListener('keydown', (e) => {
 // Stream a PDF from output/ with strict filename safety.
 function serveOutputPdf(query, res) {
   const file = String(query.file || '').trim();
-  if (!/^[a-zA-Z0-9._-]+\.pdf$/.test(file)) {
+  // Allow one folder level (output/<per-job folder>/<file>.pdf) but no "..":
+  // dots are legal inside a segment, so traversal is rejected explicitly and
+  // the resolved path is re-checked against the output directory below.
+  if (!/^(?:[a-zA-Z0-9._-]+\/)?[a-zA-Z0-9._-]+\.pdf$/.test(file) || file.includes('..')) {
     res.writeHead(400, { 'Content-Type': 'text/plain' });
     res.end('invalid file');
     return;
   }
-  const abs = join(ROOT, 'output', file);
+  const outDir = join(ROOT, 'output');
+  const abs = join(outDir, file);
+  if (!abs.startsWith(outDir + '/')) {
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    res.end('invalid file');
+    return;
+  }
   if (!existsSync(abs)) {
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('not found');
@@ -3540,7 +3584,7 @@ function serveOutputPdf(query, res) {
   res.writeHead(200, {
     'Content-Type': 'application/pdf',
     'Content-Length': stat.size,
-    'Content-Disposition': `inline; filename="${file}"`,
+    'Content-Disposition': `inline; filename="${file.slice(file.lastIndexOf('/') + 1)}"`,
     'Cache-Control': 'no-cache',
   });
   createReadStream(abs).pipe(res);
@@ -3577,6 +3621,9 @@ function renderPipeline(query) {
 
   // Display columns (forward funnel). Rejected gets its own collapsible leftmost
   // column; the quieter Discarded/SKIP states live in the bottom lane.
+  // Inside Rejected, the roles that actually interviewed him are pinned to the
+  // top under their own heading — a company that met you and passed is a warmer
+  // lead than one that never replied. Display-only: the status stays 'Rejected'.
   const REJECTED_COL = { key: 'Rejected', dot: '#B4534B', statuses: ['Rejected'] };
   const COLS = [
     REJECTED_COL,
@@ -3660,7 +3707,18 @@ function renderPipeline(query) {
       }).join('');
       const pvMore = cards.length > MAX_PV ? `<div class="rej-pv-more">+${cards.length - MAX_PV} more</div>` : '';
       const preview = cards.length ? `<div class="rej-preview" aria-hidden="true">${pvRows}${pvMore}</div>` : '';
-      return `<div class="col col-rejected" data-status="${c.statuses[0]}" data-statuses="${c.statuses.join(',')}"><div class="col-h col-h-toggle" role="button" tabindex="0" title="Show/hide rejected roles"><span><span class="chev">▸</span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div>${peek}${preview}<div class="col-body">${inner}</div></div>`;
+      // Split the rail: interviewed-then-rejected on top, under its own heading.
+      // Headings only appear once there is something in the warm group, so a
+      // pipeline without interviews looks exactly as it did before.
+      const interviewed = cards.filter(r => reachedInterview(r[idx.notes] || ''));
+      const coldRejected = cards.filter(r => !reachedInterview(r[idx.notes] || ''));
+      const body = interviewed.length
+        ? `<div class="rej-sec"><div class="rej-sec-h rej-sec-warm">Interviewed<span class="rej-sec-c">${interviewed.length}</span></div>${interviewed.map(card).join('')}</div>`
+          + (coldRejected.length
+            ? `<div class="rej-sec"><div class="rej-sec-h">No interview<span class="rej-sec-c">${coldRejected.length}</span></div>${coldRejected.map(card).join('')}</div>`
+            : '')
+        : inner;
+      return `<div class="col col-rejected" data-status="${c.statuses[0]}" data-statuses="${c.statuses.join(',')}"><div class="col-h col-h-toggle" role="button" tabindex="0" title="Show/hide rejected roles"><span><span class="chev">▸</span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div>${peek}${preview}<div class="col-body">${body}</div></div>`;
     }
     return `<div class="col" data-status="${c.statuses[0]}" data-statuses="${c.statuses.join(',')}"><div class="col-h"><span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div>${inner}</div>`;
   }).join('');
