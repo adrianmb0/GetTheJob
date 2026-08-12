@@ -925,37 +925,39 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 @media (max-width: 680px) { .board { grid-template-columns: 1fr; } }
 /* Rejected: collapsible leftmost rail. Header matches other columns; when
    collapsed, a stacked-card "peek" below hints there's hidden content. */
+/* The rail opens by growing into its own height — grid-template-rows 0fr → 1fr
+   is the one way to transition to "auto" — so the column itself expands rather
+   than a panel appearing over the board. */
 .col-rejected { position: relative; }
+/* Height is animated from a measured value in JS. The 0fr→1fr grid trick
+   collapses to 0 here because the subsections inside are transitioning grids of
+   their own, and the outer track resolves before they have a size. */
+.col-rejected .col-body { overflow: hidden; transition: height .34s cubic-bezier(.22,.61,.36,1); }
+.rej-body-inner { transition: opacity .26s ease .04s; }
 .col-rejected.collapsed { min-height: 0; }
-.col-rejected.collapsed .col-body { display: none; }
+.col-rejected.collapsed .col-body { height: 0; }
+.col-rejected.collapsed .rej-body-inner { opacity: 0; transition: opacity .16s ease; }
+/* Suppress the transition while the collapsed state is restored on load. */
+.col-rejected.no-anim .col-body, .col-rejected.no-anim .rej-peek, .col-rejected.no-anim .rej-body-inner { transition: none; }
 .col-h-toggle { cursor: pointer; user-select: none; }
-.col-h-toggle .chev { display: inline-block; transition: transform .15s ease; margin-right: 7px; font-size: 11px; color: var(--muted); }
+.col-h-toggle .chev { display: inline-block; transition: transform .3s cubic-bezier(.22,.61,.36,1); margin-right: 7px; font-size: 11px; color: var(--muted); }
 .col-rejected:not(.collapsed) .col-h-toggle .chev { transform: rotate(90deg); }
-.rej-peek { display: none; }
-.col-rejected.collapsed .rej-peek { display: block; cursor: pointer; padding-bottom: 6px; }
-.rej-peek-ghost { height: 30px; border: 1px solid var(--border); border-radius: 10px; background: var(--canvas); position: relative; transition: transform .2s ease; }
-.rej-peek-ghost::before, .rej-peek-ghost::after { content: ''; position: absolute; left: 8px; right: 8px; border: 1px solid var(--border); border-top: none; border-radius: 0 0 9px 9px; background: var(--canvas); height: 6px; transition: bottom .2s ease; }
+/* Collapsed affordance: a stack of ghost cards that folds away as the real
+   cards arrive. It shares the open/close timing so the two read as one motion. */
+.rej-peek { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .34s cubic-bezier(.22,.61,.36,1), opacity .18s ease; }
+.rej-peek > * { min-height: 0; overflow: hidden; }
+.col-rejected.collapsed .rej-peek { grid-template-rows: 1fr; opacity: 1; cursor: pointer; transition: grid-template-rows .34s cubic-bezier(.22,.61,.36,1), opacity .26s ease .08s; }
+.rej-peek-inner { padding-bottom: 6px; }
+.rej-peek-ghost { height: 30px; border: 1px solid var(--border); border-radius: 10px; background: var(--canvas); position: relative; transition: transform .22s ease; }
+.rej-peek-ghost::before, .rej-peek-ghost::after { content: ''; position: absolute; left: 8px; right: 8px; border: 1px solid var(--border); border-top: none; border-radius: 0 0 9px 9px; background: var(--canvas); height: 6px; transition: bottom .22s ease; }
 .rej-peek-ghost::before { bottom: -5px; }
 .rej-peek-ghost::after { bottom: -9px; left: 13px; right: 13px; opacity: .55; }
 .rej-peek-cap { margin-top: 15px; text-align: center; font-size: 11px; color: var(--muted); transition: opacity .18s ease; }
-/* playful fan-out of the stacked cards on hover */
+/* Hover lifts the stack a little — an invitation to click, not a preview. */
 .col-rejected.collapsed:hover .rej-peek-ghost { transform: translateY(-2px); }
 .col-rejected.collapsed:hover .rej-peek-ghost::before { bottom: -7px; }
 .col-rejected.collapsed:hover .rej-peek-ghost::after { bottom: -13px; }
 .col-rejected.collapsed:hover .rej-peek-cap { opacity: .5; }
-/* floating preview that fades + slides in on hover — no board reflow */
-.rej-preview { display: none; }
-.col-rejected.collapsed .rej-preview { display: block; position: absolute; left: 8px; right: 8px; top: 44px; z-index: 40; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 28px rgba(0,0,0,.15); padding: 6px; opacity: 0; transform: translateY(-6px) scale(.98); transform-origin: top left; pointer-events: none; transition: opacity .18s ease, transform .22s cubic-bezier(.2,.7,.3,1); }
-.col-rejected.collapsed:hover .rej-preview { opacity: 1; transform: translateY(0) scale(1); }
-.rej-pv-row { display: flex; align-items: center; gap: 8px; padding: 7px 6px; opacity: 0; transform: translateX(-4px); transition: opacity .2s ease, transform .2s ease; }
-.rej-pv-row + .rej-pv-row { border-top: 1px solid var(--border); }
-.col-rejected.collapsed:hover .rej-pv-row { opacity: 1; transform: translateX(0); }
-.col-rejected.collapsed:hover .rej-pv-row:nth-child(2) { transition-delay: .04s; }
-.col-rejected.collapsed:hover .rej-pv-row:nth-child(3) { transition-delay: .08s; }
-.col-rejected.collapsed:hover .rej-pv-row:nth-child(4) { transition-delay: .12s; }
-.rej-pv-txt { font-size: 12px; color: var(--fg); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
-.rej-pv-txt b { font-weight: 680; }
-.rej-pv-more { text-align: center; font-size: 10.5px; color: var(--muted); padding: 5px 0 2px; }
 /* Subsections inside the Rejected rail: interviewed-then-rejected sits on top,
    marked warm, because those companies met him and can be re-approached. */
 .rej-sec + .rej-sec { margin-top: 12px; }
@@ -965,10 +967,16 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .rej-sec-c { order: 3; font-weight: 730; font-size: 10px; color: var(--muted); background: var(--neutral-bg); border-radius: 999px; padding: 1px 7px; }
 .rej-sec-warm { color: #B4534B; }
 .rej-sec-warm::after { background: rgba(180, 83, 75, .28); }
-.sec-chev { font-size: 9px; line-height: 1; transition: transform .16s ease; }
+.sec-chev { font-size: 9px; line-height: 1; transition: transform .28s cubic-bezier(.22,.61,.36,1); }
+/* Same growth as the rail, so folding a half reads as the same gesture. */
+.rej-sec-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .3s cubic-bezier(.22,.61,.36,1); }
+.rej-sec-body > * { min-height: 0; overflow: hidden; }
 .rej-sec.sec-collapsed .sec-chev { transform: rotate(-90deg); }
-.rej-sec.sec-collapsed .rej-sec-body { display: none; }
+.rej-sec.sec-collapsed .rej-sec-body { grid-template-rows: 0fr; }
 .rej-sec.sec-collapsed .rej-sec-h { padding-bottom: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .col-rejected .col-body, .rej-peek, .rej-sec-body, .rej-body-inner, .col-h-toggle .chev, .sec-chev { transition: none; }
+}
 .col { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 11px; min-height: 180px; }
 .col.drop-target { outline: 2px dashed var(--accent); outline-offset: -4px; background: var(--accent-weak); }
 .closed-lane.drop-target { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 10px; background: var(--accent-weak); }
@@ -3684,16 +3692,8 @@ function renderPipeline(query) {
     // toggle (chevron), and it carries a distinct class so JS/CSS can fold it.
     if (c.key === 'Rejected') {
       const peek = cards.length
-        ? `<div class="rej-peek" role="button" tabindex="0" title="Show rejected roles"><div class="rej-peek-ghost"></div><div class="rej-peek-cap">click to show</div></div>`
+        ? `<div class="rej-peek" role="button" tabindex="0" title="Show rejected roles"><div class="rej-peek-inner"><div class="rej-peek-ghost"></div><div class="rej-peek-cap">click to show</div></div></div>`
         : '';
-      // Compact hover-preview of the hidden roles (fades in; doesn't reflow the board).
-      const MAX_PV = 5;
-      const pvRows = cards.slice(0, MAX_PV).map(r => {
-        const scoreRaw = r[idx.score] || '';
-        return `<div class="rej-pv-row"><span class="score-mini ${scoreClass(scoreRaw)}">${escapeHtml(scoreRaw || '—')}</span><span class="rej-pv-txt"><b>${escapeHtml(r[idx.company] || '')}</b> · ${escapeHtml(r[idx.role] || '')}</span></div>`;
-      }).join('');
-      const pvMore = cards.length > MAX_PV ? `<div class="rej-pv-more">+${cards.length - MAX_PV} more</div>` : '';
-      const preview = cards.length ? `<div class="rej-preview" aria-hidden="true">${pvRows}${pvMore}</div>` : '';
       // Split the rail by status: interviewed-then-rejected on top. Each half is
       // its own drop zone, so dragging a card into (or between) them is what
       // sets the status — no separate picker needed. Both halves always render,
@@ -3709,12 +3709,14 @@ function renderPipeline(query) {
           <div class="rej-sec-h${warm ? ' rej-sec-warm' : ''}" role="button" tabindex="0" data-seckey="${key}" title="Show/hide these">
             <span class="sec-chev">▾</span>${label}<span class="rej-sec-c">${list.length}</span>
           </div>
-          <div class="rej-sec-body">${bodyInner}</div>
+          <div class="rej-sec-body"><div class="rej-sec-inner">${bodyInner}</div></div>
         </div>`;
       };
       const body = section('Interviewed', INTERVIEWED_REJECTED, interviewed, 'interviewed', true)
         + section('No interview', 'Rejected', coldRejected, 'cold', false);
-      return `<div class="col col-rejected" data-status="Rejected" data-statuses="${c.statuses.join(',')}"><div class="col-h col-h-toggle" role="button" tabindex="0" title="Show/hide rejected roles"><span><span class="chev">▸</span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div>${peek}${preview}<div class="col-body">${body}</div></div>`;
+      // The body is wrapped so the column can grow into its own height with a
+      // grid-template-rows transition, instead of snapping open with display:none.
+      return `<div class="col col-rejected" data-status="Rejected" data-statuses="${c.statuses.join(',')}"><div class="col-h col-h-toggle" role="button" tabindex="0" title="Show/hide rejected roles"><span><span class="chev">▸</span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div>${peek}<div class="col-body"><div class="rej-body-inner">${body}</div></div></div>`;
     }
     return `<div class="col" data-status="${c.statuses[0]}" data-statuses="${c.statuses.join(',')}"><div class="col-h"><span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div>${inner}</div>`;
   }).join('');
@@ -3852,12 +3854,47 @@ function submitAddPosting(e) {
   if (!col) return;
   const KEY = 'getthejob-rejected-collapsed';
   const stored = localStorage.getItem(KEY);
-  // Default to collapsed so rejections stay tucked away; header is always visible.
+  const body = col.querySelector('.col-body');
+  const inner = col.querySelector('.rej-body-inner');
+  // Default to collapsed so rejections stay tucked away; header is always
+  // visible. Restoring that state must not animate, hence no-anim for a frame.
+  // Flush the restored state synchronously rather than waiting on rAF, which
+  // Chrome throttles in a background tab — the guard would never lift there and
+  // the rail would stay un-animated for the life of the page.
+  col.classList.add('no-anim');
   if (stored === null || stored === '1') col.classList.add('collapsed');
+  void col.offsetHeight;
+  col.classList.remove('no-anim');
   const header = col.querySelector('.col-h-toggle');
+
+  // Animate to the measured height, then hand the height back to CSS so the
+  // column keeps tracking its content when a subsection folds underneath it.
+  let settle = null, onEnd = null;
   function toggle(){
-    const collapsed = col.classList.toggle('collapsed');
-    localStorage.setItem(KEY, collapsed ? '1' : '0');
+    // Cancel any in-flight settle so a fast double-toggle can't finalise the
+    // height for the state we just left.
+    if (settle) { clearTimeout(settle); settle = null; }
+    if (onEnd) { body.removeEventListener('transitionend', onEnd); onEnd = null; }
+
+    const collapsing = !col.classList.contains('collapsed');
+    body.style.height = (collapsing ? body.getBoundingClientRect().height : 0) + 'px';
+    void body.offsetHeight;
+    col.classList.toggle('collapsed', collapsing);
+    body.style.height = (collapsing ? 0 : inner.getBoundingClientRect().height) + 'px';
+    localStorage.setItem(KEY, collapsing ? '1' : '0');
+
+    // Hand the height back to CSS once open, so the column keeps tracking its
+    // content when a subsection folds underneath it. The timeout is the safety
+    // net: transitions do not run in a hidden tab, so transitionend may never
+    // fire and the column would be stuck at a stale pixel height.
+    const finish = () => {
+      if (settle) { clearTimeout(settle); settle = null; }
+      if (onEnd) { body.removeEventListener('transitionend', onEnd); onEnd = null; }
+      body.style.height = collapsing ? '' : 'auto';
+    };
+    onEnd = (e) => { if (e.propertyName === 'height') finish(); };
+    body.addEventListener('transitionend', onEnd);
+    settle = setTimeout(finish, 420);
   }
   const targets = [header, col.querySelector('.rej-peek')].filter(Boolean);
   targets.forEach(t => {
