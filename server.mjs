@@ -928,7 +928,7 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 /* The rail opens by growing into its own height — grid-template-rows 0fr → 1fr
    is the one way to transition to "auto" — so the column itself expands rather
    than a panel appearing over the board. */
-.col-rejected { position: relative; --rej-peek-h: 122px; }
+.col-rejected { position: relative; --rej-peek-h: 122px; --rej-peek-hover-h: 316px; }
 /* Collapsed, the rail crops the real cards and fades them out — the preview is
    the content itself, so opening just grows the crop away. Height is animated
    from a measured value in JS: the 0fr→1fr grid trick collapses to 0 here
@@ -939,6 +939,14 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .col-rejected.collapsed .col-body { height: var(--rej-peek-h); pointer-events: none;
   -webkit-mask-image: linear-gradient(to bottom, #000 34%, rgba(0,0,0,.45) 74%, transparent 100%);
   mask-image: linear-gradient(to bottom, #000 34%, rgba(0,0,0,.45) 74%, transparent 100%); }
+/* Hovering the collapsed rail opens it a little further — the same in-flow
+   growth as a click, just a shorter distance, so the peek and the open are one
+   gesture at two depths rather than a popup pretending to be a preview. The
+   board does not reflow: columns are top-aligned, so only this one grows. */
+.col-rejected.collapsed:hover .col-body, .col-rejected.collapsed:focus-within .col-body {
+  height: var(--rej-peek-hover-h);
+  -webkit-mask-image: linear-gradient(to bottom, #000 66%, rgba(0,0,0,.5) 86%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 66%, rgba(0,0,0,.5) 86%, transparent 100%); }
 /* Suppress the transition while the collapsed state is restored on load. */
 .col-rejected.no-anim .col-body, .col-rejected.no-anim .rej-peek, .col-rejected.no-anim .rej-body-inner { transition: none; }
 .col-h-toggle { cursor: pointer; user-select: none; }
@@ -3871,11 +3879,13 @@ function submitAddPosting(e) {
     if (onEnd) { body.removeEventListener('transitionend', onEnd); onEnd = null; }
 
     const collapsing = !col.classList.contains('collapsed');
-    const peekH = parseFloat(getComputedStyle(col).getPropertyValue('--rej-peek-h')) || 122;
-    body.style.height = (collapsing ? body.getBoundingClientRect().height : peekH) + 'px';
+    body.style.height = body.getBoundingClientRect().height + 'px';
     void body.offsetHeight;
     col.classList.toggle('collapsed', collapsing);
-    body.style.height = (collapsing ? peekH : inner.getBoundingClientRect().height) + 'px';
+    // Collapsing hands the height straight back to CSS, which picks the peek or
+    // the hover height depending on where the pointer is; the transition runs
+    // from the pinned value either way.
+    body.style.height = collapsing ? '' : inner.getBoundingClientRect().height + 'px';
     localStorage.setItem(KEY, collapsing ? '1' : '0');
 
     // Hand the height back to CSS once open, so the column keeps tracking its
