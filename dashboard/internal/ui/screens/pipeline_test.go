@@ -94,3 +94,63 @@ func TestRenderAppLineIncludesDateColumn(t *testing.T) {
 		t.Fatalf("expected rendered line to include date column, got %q", line)
 	}
 }
+
+func TestDisplayGroupSplitsInterviewedRejections(t *testing.T) {
+	cases := []struct {
+		name  string
+		app   model.CareerApplication
+		group string
+	}{
+		{
+			name:  "rejected after an interview",
+			app:   model.CareerApplication{Status: "Rejected", Notes: "applied 2026-07-19 via dashboard; interview 2026-07-24 via dashboard; rejected 2026-08-05 via dashboard"},
+			group: groupInterviewedRejected,
+		},
+		{
+			name:  "rejected after moving to Interview",
+			app:   model.CareerApplication{Status: "Rejected", Notes: "discovery call scheduled; moved to Interview 2026-06-05; rejected 2026-07-18 via dashboard"},
+			group: groupInterviewedRejected,
+		},
+		{
+			name:  "rejected without ever interviewing",
+			app:   model.CareerApplication{Status: "Rejected", Notes: "applied 2026-07-19 via dashboard; rejected 2026-07-24 via dashboard"},
+			group: "rejected",
+		},
+		{
+			name:  "negated mention does not count",
+			app:   model.CareerApplication{Status: "Rejected", Notes: "rejected at screen, no interview scheduled"},
+			group: "rejected",
+		},
+		{
+			name:  "still interviewing keeps its own status",
+			app:   model.CareerApplication{Status: "Interview", Notes: "interview 2026-07-24 via dashboard"},
+			group: "interview",
+		},
+		{
+			name:  "interview mention on a non-rejected row is ignored",
+			app:   model.CareerApplication{Status: "Applied", Notes: "applied 2026-08-01; interview loop described in the JD"},
+			group: "applied",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := displayGroup(tc.app); got != tc.group {
+				t.Fatalf("displayGroup = %q, want %q", got, tc.group)
+			}
+		})
+	}
+}
+
+func TestInterviewedRejectedSortsAboveRejected(t *testing.T) {
+	interviewed := model.CareerApplication{Status: "Rejected", Notes: "interview 2026-07-24 via dashboard; rejected 2026-08-05"}
+	cold := model.CareerApplication{Status: "Rejected", Notes: "rejected 2026-07-24 via dashboard"}
+	skipped := model.CareerApplication{Status: "SKIP", Notes: ""}
+
+	if groupPriority(interviewed) >= groupPriority(cold) {
+		t.Fatalf("interviewed rejection must sort above a cold one: %d vs %d", groupPriority(interviewed), groupPriority(cold))
+	}
+	if groupPriority(skipped) >= groupPriority(interviewed) {
+		t.Fatalf("skip must stay above the rejected groups: %d vs %d", groupPriority(skipped), groupPriority(interviewed))
+	}
+}
