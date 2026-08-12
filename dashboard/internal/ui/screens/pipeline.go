@@ -91,65 +91,22 @@ var sortCycle = []string{sortScore, sortDate, sortCompany, sortStatus}
 
 var statusOptions = []string{"Evaluated", "Applied", "Responded", "Interview", "Offer", "Rejected", "Discarded", "SKIP"}
 
-// groupInterviewedRejected is a display-only group. It is not a canonical
-// status: these rows are still "Rejected" in applications.md. A company that
-// interviewed you and then passed is a warmer lead than one that never
-// replied, so the board keeps the two apart.
+// groupInterviewedRejected matches the canonical "Interviewed - Rejected"
+// status (see templates/states.yml). A company that interviewed you and then
+// passed is a warmer lead than one that never replied, so it gets its own group.
 const groupInterviewedRejected = "interviewed_rejected"
 
 // statusGroupOrder defines display order for grouped view.
 var statusGroupOrder = []string{"interview", "offer", "responded", "applied", "evaluated", "skip", groupInterviewedRejected, "rejected", "discarded"}
 
-// displayGroup returns the board group for an application: its normalized
-// status, except that rejections which reached an interview get their own.
+// displayGroup returns the board group for an application.
 func displayGroup(app model.CareerApplication) string {
-	norm := data.NormalizeStatus(app.Status)
-	if norm == "rejected" && reachedInterview(app) {
-		return groupInterviewedRejected
-	}
-	return norm
+	return data.NormalizeStatus(app.Status)
 }
 
-// reachedInterview reports whether the notes record an interview happening.
-// Status transitions are appended to the notes ("interview 2026-07-24 via
-// dashboard", "moved to Interview"), so the notes are the history we have.
-func reachedInterview(app model.CareerApplication) bool {
-	notes := strings.ToLower(app.Notes)
-	for _, marker := range []string{"interview", "entrevista"} {
-		for idx := 0; ; {
-			i := strings.Index(notes[idx:], marker)
-			if i < 0 {
-				break
-			}
-			at := idx + i
-			if !negatedBefore(notes[:at]) {
-				return true
-			}
-			idx = at + len(marker)
-		}
-	}
-	return false
-}
-
-// negatedBefore reports whether the text immediately preceding a match negates
-// it, so "no interview yet" does not count as having interviewed.
-func negatedBefore(before string) bool {
-	trimmed := strings.TrimRight(before, " ")
-	for _, neg := range []string{"no", "not", "never", "without", "pre", "declined"} {
-		if strings.HasSuffix(trimmed, " "+neg) || trimmed == neg {
-			return true
-		}
-	}
-	return false
-}
-
-// groupPriority orders the board groups. Values are the canonical status
-// priority scaled by 10 so the display-only group can slot between two of them.
+// groupPriority orders the board groups.
 func groupPriority(app model.CareerApplication) int {
-	if displayGroup(app) == groupInterviewedRejected {
-		return 55 // between skip (50) and rejected (60)
-	}
-	return data.StatusPriority(app.Status) * 10
+	return data.StatusPriority(app.Status)
 }
 
 // PipelineModel implements the career pipeline dashboard screen.

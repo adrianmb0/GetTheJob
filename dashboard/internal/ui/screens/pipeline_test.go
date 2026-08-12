@@ -102,34 +102,24 @@ func TestDisplayGroupSplitsInterviewedRejections(t *testing.T) {
 		group string
 	}{
 		{
-			name:  "rejected after an interview",
-			app:   model.CareerApplication{Status: "Rejected", Notes: "applied 2026-07-19 via dashboard; interview 2026-07-24 via dashboard; rejected 2026-08-05 via dashboard"},
+			name:  "interviewed then rejected",
+			app:   model.CareerApplication{Status: "Interviewed - Rejected"},
 			group: groupInterviewedRejected,
 		},
 		{
-			name:  "rejected after moving to Interview",
-			app:   model.CareerApplication{Status: "Rejected", Notes: "discovery call scheduled; moved to Interview 2026-06-05; rejected 2026-07-18 via dashboard"},
-			group: groupInterviewedRejected,
-		},
-		{
-			name:  "rejected without ever interviewing",
-			app:   model.CareerApplication{Status: "Rejected", Notes: "applied 2026-07-19 via dashboard; rejected 2026-07-24 via dashboard"},
+			name:  "rejected without interviewing",
+			app:   model.CareerApplication{Status: "Rejected"},
 			group: "rejected",
 		},
 		{
-			name:  "negated mention does not count",
-			app:   model.CareerApplication{Status: "Rejected", Notes: "rejected at screen, no interview scheduled"},
-			group: "rejected",
-		},
-		{
-			name:  "still interviewing keeps its own status",
-			app:   model.CareerApplication{Status: "Interview", Notes: "interview 2026-07-24 via dashboard"},
+			name:  "still interviewing stays active",
+			app:   model.CareerApplication{Status: "Interview"},
 			group: "interview",
 		},
 		{
-			name:  "interview mention on a non-rejected row is ignored",
-			app:   model.CareerApplication{Status: "Applied", Notes: "applied 2026-08-01; interview loop described in the JD"},
-			group: "applied",
+			name:  "notes no longer decide the group",
+			app:   model.CareerApplication{Status: "Rejected", Notes: "interview 2026-07-24 via dashboard; rejected 2026-08-05"},
+			group: "rejected",
 		},
 	}
 
@@ -143,14 +133,18 @@ func TestDisplayGroupSplitsInterviewedRejections(t *testing.T) {
 }
 
 func TestInterviewedRejectedSortsAboveRejected(t *testing.T) {
-	interviewed := model.CareerApplication{Status: "Rejected", Notes: "interview 2026-07-24 via dashboard; rejected 2026-08-05"}
-	cold := model.CareerApplication{Status: "Rejected", Notes: "rejected 2026-07-24 via dashboard"}
-	skipped := model.CareerApplication{Status: "SKIP", Notes: ""}
+	interviewed := model.CareerApplication{Status: "Interviewed - Rejected"}
+	cold := model.CareerApplication{Status: "Rejected"}
+	skipped := model.CareerApplication{Status: "SKIP"}
+	discarded := model.CareerApplication{Status: "Discarded"}
 
 	if groupPriority(interviewed) >= groupPriority(cold) {
 		t.Fatalf("interviewed rejection must sort above a cold one: %d vs %d", groupPriority(interviewed), groupPriority(cold))
 	}
 	if groupPriority(skipped) >= groupPriority(interviewed) {
 		t.Fatalf("skip must stay above the rejected groups: %d vs %d", groupPriority(skipped), groupPriority(interviewed))
+	}
+	if groupPriority(cold) >= groupPriority(discarded) {
+		t.Fatalf("discarded must stay below rejected: %d vs %d", groupPriority(cold), groupPriority(discarded))
 	}
 }

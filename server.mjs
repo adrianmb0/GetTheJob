@@ -959,11 +959,16 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 /* Subsections inside the Rejected rail: interviewed-then-rejected sits on top,
    marked warm, because those companies met him and can be re-approached. */
 .rej-sec + .rej-sec { margin-top: 12px; }
-.rej-sec-h { display: flex; align-items: center; gap: 7px; font-size: 10.5px; font-weight: 720; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding: 0 2px 7px; }
-.rej-sec-h::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.rej-sec.drop-target { outline: 2px dashed var(--accent); outline-offset: 3px; border-radius: 10px; background: var(--accent-weak); }
+.rej-sec-h { display: flex; align-items: center; gap: 7px; font-size: 10.5px; font-weight: 720; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding: 0 2px 7px; cursor: pointer; user-select: none; }
+.rej-sec-h::after { content: ''; order: 2; flex: 1; height: 1px; background: var(--border); }
 .rej-sec-c { order: 3; font-weight: 730; font-size: 10px; color: var(--muted); background: var(--neutral-bg); border-radius: 999px; padding: 1px 7px; }
 .rej-sec-warm { color: #B4534B; }
 .rej-sec-warm::after { background: rgba(180, 83, 75, .28); }
+.sec-chev { font-size: 9px; line-height: 1; transition: transform .16s ease; }
+.rej-sec.sec-collapsed .sec-chev { transform: rotate(-90deg); }
+.rej-sec.sec-collapsed .rej-sec-body { display: none; }
+.rej-sec.sec-collapsed .rej-sec-h { padding-bottom: 2px; }
 .col { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 11px; min-height: 180px; }
 .col.drop-target { outline: 2px dashed var(--accent); outline-offset: -4px; background: var(--accent-weak); }
 .closed-lane.drop-target { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 10px; background: var(--accent-weak); }
@@ -3176,7 +3181,7 @@ function spawnTerminalApply(url) {
 
 const CANONICAL_STATUSES = new Set([
   'Shortlisted', 'Evaluated', 'Applied', 'Responded', 'Interview',
-  'Offer', 'Rejected', 'Discarded', 'SKIP'
+  'Offer', 'Interviewed - Rejected', 'Rejected', 'Discarded', 'SKIP'
 ]);
 
 // Set a row's status to any canonical value. Atomic write + .bak.
@@ -3365,26 +3370,6 @@ function deleteRowFromTracker(numRaw) {
   writeFileSync(tmp, lines.join('\n'));
   renameSync(tmp, path);
   return { ok: true };
-}
-
-// Did this role ever reach an interview? Status changes are appended to the
-// notes ("interview 2026-07-24 via dashboard", "moved to Interview"), so the
-// notes are the history we have. Negated mentions ("no interview") don't count.
-function reachedInterview(note) {
-  const s = String(note || '').toLowerCase();
-  for (const marker of ['interview', 'entrevista']) {
-    let idx = 0;
-    for (;;) {
-      const at = s.indexOf(marker, idx);
-      if (at < 0) break;
-      const before = s.slice(0, at).trimEnd();
-      const negated = ['no', 'not', 'never', 'without', 'pre', 'declined']
-        .some(neg => before === neg || before.endsWith(' ' + neg));
-      if (!negated) return true;
-      idx = at + marker.length;
-    }
-  }
-  return false;
 }
 
 // ----- apply pack helpers -----
@@ -3624,7 +3609,8 @@ function renderPipeline(query) {
   // Inside Rejected, the roles that actually interviewed him are pinned to the
   // top under their own heading — a company that met you and passed is a warmer
   // lead than one that never replied. Display-only: the status stays 'Rejected'.
-  const REJECTED_COL = { key: 'Rejected', dot: '#B4534B', statuses: ['Rejected'] };
+  const INTERVIEWED_REJECTED = 'Interviewed - Rejected';
+  const REJECTED_COL = { key: 'Rejected', dot: '#B4534B', statuses: ['Rejected', INTERVIEWED_REJECTED] };
   const COLS = [
     REJECTED_COL,
     // Shortlisted + Evaluated share one column: both are "pulled into the pipeline,
@@ -3638,6 +3624,7 @@ function renderPipeline(query) {
   const colOf = (status) => {
     if (status === 'Evaluated') return 'Shortlisted';
     if (status === 'Responded') return 'Applied';
+    if (status === INTERVIEWED_REJECTED) return 'Rejected';
     if (CLOSED.includes(status)) return 'Closed';
     if (COLS.some(c => c.key === status)) return status;
     return 'Shortlisted';
@@ -3707,18 +3694,27 @@ function renderPipeline(query) {
       }).join('');
       const pvMore = cards.length > MAX_PV ? `<div class="rej-pv-more">+${cards.length - MAX_PV} more</div>` : '';
       const preview = cards.length ? `<div class="rej-preview" aria-hidden="true">${pvRows}${pvMore}</div>` : '';
-      // Split the rail: interviewed-then-rejected on top, under its own heading.
-      // Headings only appear once there is something in the warm group, so a
-      // pipeline without interviews looks exactly as it did before.
-      const interviewed = cards.filter(r => reachedInterview(r[idx.notes] || ''));
-      const coldRejected = cards.filter(r => !reachedInterview(r[idx.notes] || ''));
-      const body = interviewed.length
-        ? `<div class="rej-sec"><div class="rej-sec-h rej-sec-warm">Interviewed<span class="rej-sec-c">${interviewed.length}</span></div>${interviewed.map(card).join('')}</div>`
-          + (coldRejected.length
-            ? `<div class="rej-sec"><div class="rej-sec-h">No interview<span class="rej-sec-c">${coldRejected.length}</span></div>${coldRejected.map(card).join('')}</div>`
-            : '')
-        : inner;
-      return `<div class="col col-rejected" data-status="${c.statuses[0]}" data-statuses="${c.statuses.join(',')}"><div class="col-h col-h-toggle" role="button" tabindex="0" title="Show/hide rejected roles"><span><span class="chev">▸</span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div>${peek}${preview}<div class="col-body">${body}</div></div>`;
+      // Split the rail by status: interviewed-then-rejected on top. Each half is
+      // its own drop zone, so dragging a card into (or between) them is what
+      // sets the status — no separate picker needed. Both halves always render,
+      // including when empty, otherwise there would be nowhere to drop.
+      const statusOf = (r) => (r[idx.status] || '').trim();
+      const interviewed = cards.filter(r => statusOf(r) === INTERVIEWED_REJECTED);
+      const coldRejected = cards.filter(r => statusOf(r) !== INTERVIEWED_REJECTED);
+      const section = (label, status, list, key, warm) => {
+        const bodyInner = list.length
+          ? list.map(card).join('')
+          : `<div class="kc-empty">Drag a card here</div>`;
+        return `<div class="rej-sec" data-status="${escapeHtml(status)}" data-statuses="${escapeHtml(status)}">
+          <div class="rej-sec-h${warm ? ' rej-sec-warm' : ''}" role="button" tabindex="0" data-seckey="${key}" title="Show/hide these">
+            <span class="sec-chev">▾</span>${label}<span class="rej-sec-c">${list.length}</span>
+          </div>
+          <div class="rej-sec-body">${bodyInner}</div>
+        </div>`;
+      };
+      const body = section('Interviewed', INTERVIEWED_REJECTED, interviewed, 'interviewed', true)
+        + section('No interview', 'Rejected', coldRejected, 'cold', false);
+      return `<div class="col col-rejected" data-status="Rejected" data-statuses="${c.statuses.join(',')}"><div class="col-h col-h-toggle" role="button" tabindex="0" title="Show/hide rejected roles"><span><span class="chev">▸</span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div>${peek}${preview}<div class="col-body">${body}</div></div>`;
     }
     return `<div class="col" data-status="${c.statuses[0]}" data-statuses="${c.statuses.join(',')}"><div class="col-h"><span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div>${inner}</div>`;
   }).join('');
@@ -3826,10 +3822,14 @@ function submitAddPosting(e) {
     });
   });
   dropZones.forEach(t => {
-    t.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; t.classList.add('drop-target'); });
+    // stopPropagation: the Rejected subsections are drop zones nested inside the
+    // column, which is one too. Without this both fire and the outer one wins,
+    // so every drop would land in plain Rejected.
+    t.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move'; t.classList.add('drop-target'); });
     t.addEventListener('dragleave', e => { if (!t.contains(e.relatedTarget)) t.classList.remove('drop-target'); });
     t.addEventListener('drop', e => {
       e.preventDefault();
+      e.stopPropagation();
       t.classList.remove('drop-target');
       if (!dragNum || !dragged) return;
       const status = t.dataset.status;
@@ -3863,6 +3863,20 @@ function submitAddPosting(e) {
   targets.forEach(t => {
     t.addEventListener('click', toggle);
     t.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+  });
+
+  // Each subsection folds independently, and remembers.
+  col.querySelectorAll('.rej-sec-h[data-seckey]').forEach(h => {
+    const sec = h.closest('.rej-sec');
+    const secKey = 'getthejob-rejsec-' + h.dataset.seckey;
+    if (localStorage.getItem(secKey) === '1') sec.classList.add('sec-collapsed');
+    const toggleSec = (e) => {
+      if (e) e.stopPropagation();
+      const isCollapsed = sec.classList.toggle('sec-collapsed');
+      localStorage.setItem(secKey, isCollapsed ? '1' : '0');
+    };
+    h.addEventListener('click', toggleSec);
+    h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSec(e); } });
   });
 })();
 </script>
