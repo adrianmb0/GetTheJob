@@ -3,9 +3,10 @@
 /**
  * scan.mjs — Zero-token portal scanner
  *
- * Fetches Greenhouse, Ashby, and Lever APIs directly, applies title
- * filters from portals.yml, deduplicates against existing history,
- * and appends new offers to pipeline.md + scan-history.tsv.
+ * Fetches Greenhouse, Ashby, Lever and Consider APIs directly, reads
+ * climate.jobs listing pages, applies title filters from portals.yml,
+ * deduplicates against existing history, and appends new offers to
+ * pipeline.md + scan-history.tsv.
  *
  * Zero Claude API tokens — pure HTTP + JSON.
  *
@@ -34,6 +35,59 @@ const FETCH_TIMEOUT_MS = 10_000;
 
 // ── API detection ───────────────────────────────────────────────────
 
+// Consider-hosted boards (consider.com) are talent networks: ONE endpoint covering
+// every company a fund has invested in, rather than one board per employer. The host
+// does not name the board, so it has to be mapped — the same approach
+// batch/fetch-jd.mjs takes for Greenhouse behind custom domains. One line per fund.
+const CONSIDER_BOARDS = {
+  'jobs.a16z.com': 'andreessen-horowitz',
+  'portfoliojobs.a16z.com': 'andreessen-horowitz',
+};
+
+// climate.jobs is a curated climate-sector aggregator — one board covering many
+// employers, like a Consider network, but with no JSON API to call: its robots.txt
+// disallows /api/. What it does serve is plain server-rendered HTML, so the adapter
+// reads the same listing pages a browser gets. As with Consider, the filters live in
+// the careers_url query string: filter the board in the browser and paste the URL.
+const CLIMATE_JOBS_HOST = 'climate.jobs';
+// 24 cards a page, and a filtered board is a few dozen postings. Well past that, so
+// hitting the cap means the URL is too broad rather than the board being big.
+const CLIMATE_JOBS_MAX_PAGES = 10;
+
+// A Consider board has no per-company slug to scan; what narrows it is the filter set,
+// and the board keeps that in its own URL query string. So careers_url IS the
+// configuration: filter the board in the browser, paste the URL, and the scan reads
+// exactly what you saw. Two values need the fixups the board's own UI applies before
+// querying — job types are slugs, and stage labels drop their parenthetical.
+function considerQuery(url) {
+  const params = new URL(url).searchParams;
+  const slug = (s) => s.toLowerCase().trim().replace(/\s+/g, '-');
+  const stage = (s) => s.replace(/\s*\(.*\)\s*$/, '').trim();
+  const query = {};
+
+  const posted = params.get('postedSince');
+  if (posted) query.postedSince = posted;
+
+  const lists = {
+    jobTypes: slug,
+    stages: stage,
+    markets: (s) => s,
+    locations: (s) => s,
+    departments: (s) => s,
+    skills: (s) => s,
+  };
+  for (const [key, map] of Object.entries(lists)) {
+    const values = params.getAll(key).filter(Boolean).map(map);
+    if (values.length) query[key] = values;
+  }
+
+  for (const flag of ['hybridOrRemoteOnly', 'remoteOnly']) {
+    if (params.get(flag) === 'true') query[flag] = true;
+  }
+
+  return query;
+}
+
 function detectApi(company) {
   // Greenhouse: explicit api field
   if (company.api && company.api.includes('greenhouse')) {
@@ -58,6 +112,33 @@ function detectApi(company) {
       type: 'lever',
       url: `https://api.lever.co/v0/postings/${leverMatch[1]}`,
     };
+  }
+
+  // Consider talent networks (jobs.a16z.com) — one endpoint, many employers.
+  const considerHost = Object.keys(CONSIDER_BOARDS).find(h => url.includes(h));
+  if (considerHost) {
+    return {
+      type: 'consider',
+      url: `https://${considerHost}/api-boards/search-jobs`,
+      body: {
+        // Far above what a filtered board returns (a week of Product Manager postings
+        // across the a16z portfolio is single digits). The caller warns rather than
+        // truncating silently if a wider URL ever exceeds it.
+        meta: { size: 200 },
+        board: { id: CONSIDER_BOARDS[considerHost], isParent: true },
+        query: considerQuery(url),
+        grouped: false,
+      },
+      // The board ignores salary in the query — it filters client-side, so we do too.
+      salaryMin: Number(new URL(url).searchParams.get('salaryMin')) || 0,
+    };
+  }
+
+  // climate.jobs — HTML listing board, one entry covering every employer on it.
+  let host = '';
+  try { host = new URL(url).hostname.toLowerCase().replace(/^www\./, ''); } catch { /* not a URL */ }
+  if (host === CLIMATE_JOBS_HOST) {
+    return { type: 'climatejobs', url, source: 'climatejobs-html' };
   }
 
   // Greenhouse EU boards
@@ -104,17 +185,154 @@ function parseLever(json, companyName) {
   }));
 }
 
-const PARSERS = { greenhouse: parseGreenhouse, ashby: parseAshby, lever: parseLever };
+// Consider is the one board where the employer comes from the PAYLOAD rather than
+// portals.yml — a fund's talent network lists hundreds of companies under a single
+// entry, so `companyName` here is only the fallback label.
+function parseConsider(json, companyName, api) {
+  const jobs = json.jobs || [];
+  const floor = api?.salaryMin || 0;
+  return jobs
+    // Only a PUBLISHED minimum can fail the floor. Plenty of good postings name no
+    // range at all, and dropping those would hide them for a reason we never checked.
+    .filter(j => !(floor && j.salary?.minValue && j.salary.minValue < floor))
+    .map(j => ({
+      title: j.title || '',
+      // The board links straight to the employer's own ATS posting, which is why
+      // batch/fetch-jd.mjs can already read these without a new platform handler.
+      url: j.url || j.applyUrl || '',
+      company: j.companyName || companyName,
+      location: (j.locations || []).join('; ') || (j.remote ? 'Remote' : ''),
+    }));
+}
+
+const PARSERS = {
+  greenhouse: parseGreenhouse,
+  ashby: parseAshby,
+  lever: parseLever,
+  consider: parseConsider,
+};
+
+// ── climate.jobs (HTML board) ───────────────────────────────────────
+
+function stripTags(html) {
+  // &amp; is decoded LAST. Decoding it first would turn "&amp;lt;" into "&lt;"
+  // and then into "<", double-unescaping a title that was correctly encoded.
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#0?39;|&#x27;/gi, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// As with Consider, the employer comes from the card rather than portals.yml — one
+// entry covers the whole board — so `boardName` is only the fallback label.
+function parseClimateJobsPage(html, boardName) {
+  return html.split('<article class="job-card').slice(1).map(card => {
+    const href = card.match(/<a href="(\/company\/[^"]+)"/)?.[1];
+    if (!href) return null;
+
+    // The location chip is dropped entirely on locked cards, and the comment marking
+    // it stays behind — so without this check the match would run on to the next
+    // chip and label the job "Remote" as if that were a place.
+    const chip = card.match(/<!-- Location[\s\S]*?-->([\s\S]*?)<\/span>/)?.[1] || '';
+    const hasChip = chip.trimStart().startsWith('<span');
+    let location = hasChip ? stripTags(chip) : '';
+    // The board writes locations as prose ("Work remotely from UK") that no country
+    // keyword in location_filter would match. The chip's flag carries the ISO code,
+    // so append it — that gives location_filter a stable token to work with.
+    const country = hasChip ? chip.match(/\btitle="([A-Z]{2})"/)?.[1] : null;
+    if (country && !location.includes(country)) {
+      location = location ? `${location} (${country})` : country;
+    }
+
+    const page = `https://${CLIMATE_JOBS_HOST}${href}`;
+    return {
+      title: stripTags(card.match(/<h3[^>]*>([\s\S]*?)<\/h3>/)?.[1] || ''),
+      company: stripTags(card.match(/font-medium truncate">([\s\S]*?)<\/p>/)?.[1] || '') || boardName,
+      location,
+      url: page,
+      // A climate.jobs posting page carries a summary and says as much — it points at
+      // the employer's own listing for the real description. So the link worth queueing
+      // is the outbound one, and it costs a second fetch to read. Deferred to a hook so
+      // the scan pays it once per title match, not once per card on the board.
+      resolve: () => resolveClimateJobsUrl(page),
+    };
+  }).filter(Boolean);
+}
+
+async function resolveClimateJobsUrl(pageUrl) {
+  try {
+    const html = await fetchText(pageUrl);
+    const outbound = html.match(/href="(https?:\/\/[^"]*\bref=climatejobs[^"]*)"/)?.[1];
+    return outbound ? outbound.replace(/&amp;/g, '&') : null;
+  } catch {
+    return null;   // caller falls back to the climate.jobs page
+  }
+}
+
+async function fetchClimateJobs(api, boardName) {
+  const jobs = [];
+  const firstCardSeen = new Set();
+  let page = 1;
+
+  for (; page <= CLIMATE_JOBS_MAX_PAGES; page++) {
+    const pageUrl = new URL(api.url);
+    pageUrl.searchParams.set('page', String(page));
+    const found = parseClimateJobsPage(await fetchText(pageUrl.href), boardName);
+    if (found.length === 0) break;
+    // Past the last page the board re-serves page 1 rather than 404ing, so stop on a
+    // repeat instead of collecting the same cards until the cap.
+    if (firstCardSeen.has(found[0].url)) break;
+    firstCardSeen.add(found[0].url);
+    jobs.push(...found);
+  }
+
+  const warning = page > CLIMATE_JOBS_MAX_PAGES
+    ? `read ${jobs.length} postings over ${CLIMATE_JOBS_MAX_PAGES} pages and stopped — ` +
+      `narrow the URL in portals.yml (e.g. add ?posted=7d)`
+    : null;
+
+  return { jobs, warning };
+}
 
 // ── Fetch with timeout ──────────────────────────────────────────────
 
-async function fetchJson(url) {
+// `body` turns this into a POST — Consider's search endpoint takes its filters in a
+// JSON body where the other three take a plain GET.
+async function fetchJson(url, body) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const options = { signal: controller.signal };
+    if (body) {
+      options.method = 'POST';
+      options.headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+      options.body = JSON.stringify(body);
+    }
+    const res = await fetch(url, options);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// For boards that publish no API — the page a browser would get.
+async function fetchText(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'get-the-job scan/1.0', Accept: 'text/html' },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.text();
   } finally {
     clearTimeout(timer);
   }
@@ -151,6 +369,24 @@ function buildLocationFilter(locationFilter) {
 
 // ── Dedup ───────────────────────────────────────────────────────────
 
+// The same posting reaches us under several spellings. scan-history.tsv already holds
+// all three Greenhouse hosts (boards, job-boards, job-boards.eu), and a portfolio board
+// hands back the employer's ATS link with its own decorations: a `?gh_jid=` query, a
+// percent-encoded Ashby slug ("Flock%20Safety"). Compared as raw strings those read as
+// different jobs, so a role already in the Inbox would be queued a second time.
+// Only membership tests are canonicalised — what gets WRITTEN stays the URL as
+// received, because that is the link the user has to be able to open.
+function canonicalUrl(u) {
+  try {
+    const parsed = new URL(String(u).trim());
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+    const path = decodeURIComponent(parsed.pathname).toLowerCase().replace(/\/+$/, '');
+    return `${host === 'boards.greenhouse.io' ? 'job-boards.greenhouse.io' : host}${path}`;
+  } catch {
+    return String(u).trim().toLowerCase();   // local:jds/... and other non-URLs
+  }
+}
+
 function loadSeenUrls() {
   const seen = new Set();
 
@@ -159,7 +395,7 @@ function loadSeenUrls() {
     const lines = readFileSync(SCAN_HISTORY_PATH, 'utf-8').split('\n');
     for (const line of lines.slice(1)) { // skip header
       const url = line.split('\t')[0];
-      if (url) seen.add(url);
+      if (url) seen.add(canonicalUrl(url));
     }
   }
 
@@ -167,7 +403,7 @@ function loadSeenUrls() {
   if (existsSync(PIPELINE_PATH)) {
     const text = readFileSync(PIPELINE_PATH, 'utf-8');
     for (const match of text.matchAll(/- \[[ x]\] (https?:\/\/\S+)/g)) {
-      seen.add(match[1]);
+      seen.add(canonicalUrl(match[1]));
     }
   }
 
@@ -175,7 +411,7 @@ function loadSeenUrls() {
   if (existsSync(APPLICATIONS_PATH)) {
     const text = readFileSync(APPLICATIONS_PATH, 'utf-8');
     for (const match of text.matchAll(/https?:\/\/[^\s|)]+/g)) {
-      seen.add(match[0]);
+      seen.add(canonicalUrl(match[0]));
     }
   }
 
@@ -205,19 +441,22 @@ function appendToPipeline(offers) {
 
   let text = readFileSync(PIPELINE_PATH, 'utf-8');
 
-  // Find "## Pendientes" section and append after it
-  const marker = '## Pendientes';
+  // Append under the pending section. New files (written by the setup wizard) use
+  // English headings; files from older installs use the original Spanish ones, so
+  // accept either rather than bolting a second "## Pendientes" onto an English file.
+  const marker = ['## Pending', '## Pendientes'].find(m => text.includes(m)) || '## Pending';
   const idx = text.indexOf(marker);
   if (idx === -1) {
-    // No Pendientes section — append at end before Procesadas
-    const procIdx = text.indexOf('## Procesadas');
+    // No pending section — append at the end, before the processed one
+    const procIdx = ['## Processed', '## Procesadas']
+      .map(m => text.indexOf(m)).find(i => i !== -1) ?? -1;
     const insertAt = procIdx === -1 ? text.length : procIdx;
     const block = `\n${marker}\n\n` + offers.map(o =>
       `- [ ] ${o.url} | ${o.company} | ${o.title}`
     ).join('\n') + '\n\n';
     text = text.slice(0, insertAt) + block + text.slice(insertAt);
   } else {
-    // Find the end of existing Pendientes content (next ## or end)
+    // Find the end of the existing pending content (next ## or end of file)
     const afterMarker = idx + marker.length;
     const nextSection = text.indexOf('\n## ', afterMarker);
     const insertAt = nextSection === -1 ? text.length : nextSection;
@@ -305,12 +544,27 @@ async function main() {
   let totalDupes = 0;
   const newOffers = [];
   const errors = [];
+  const warnings = [];
 
   const tasks = targets.map(company => async () => {
-    const { type, url } = company._api;
+    const { type, url, body } = company._api;
     try {
-      const json = await fetchJson(url);
-      const jobs = PARSERS[type](json, company.name);
+      let jobs;
+      if (type === 'climatejobs') {
+        const read = await fetchClimateJobs(company._api, company.name);
+        jobs = read.jobs;
+        if (read.warning) warnings.push(`${company.name}: ${read.warning}`);
+      } else {
+        const json = await fetchJson(url, body);
+        jobs = PARSERS[type](json, company.name, company._api);
+
+        // A search board answers with a page, not the whole board. Say so rather than
+        // reporting a truncated read as if it were the full picture.
+        if (json.total > (json.jobs?.length ?? 0)) {
+          warnings.push(`${company.name}: read ${json.jobs.length} of ${json.total} postings — ` +
+            `narrow the URL in portals.yml (e.g. postedSince=P7D)`);
+        }
+      }
       totalFound += jobs.length;
 
       for (const job of jobs) {
@@ -322,19 +576,25 @@ async function main() {
           totalLocFiltered++;
           continue;
         }
-        if (seenUrls.has(job.url)) {
+        // Aggregators list a job the employer also posts on its own ATS. Swap in that
+        // link before the dedup check, so a posting already in the Inbox under its ATS
+        // URL is recognised rather than queued a second time under the aggregator's.
+        const { resolve, ...offer } = job;
+        if (resolve) offer.url = (await resolve()) || offer.url;
+        const canonical = canonicalUrl(offer.url);
+        if (seenUrls.has(canonical)) {
           totalDupes++;
           continue;
         }
-        const key = `${job.company.toLowerCase()}::${job.title.toLowerCase()}`;
+        const key = `${offer.company.toLowerCase()}::${offer.title.toLowerCase()}`;
         if (seenCompanyRoles.has(key)) {
           totalDupes++;
           continue;
         }
         // Mark as seen to avoid intra-scan dupes
-        seenUrls.add(job.url);
+        seenUrls.add(canonical);
         seenCompanyRoles.add(key);
-        newOffers.push({ ...job, source: `${type}-api` });
+        newOffers.push({ ...offer, source: company._api.source || `${type}-api` });
       }
     } catch (err) {
       errors.push({ company: company.name, error: err.message });
@@ -359,6 +619,11 @@ async function main() {
   console.log(`Filtered by location:  ${totalLocFiltered} removed`);
   console.log(`Duplicates:            ${totalDupes} skipped`);
   console.log(`New offers added:      ${newOffers.length}`);
+
+  if (warnings.length > 0) {
+    console.log('');
+    for (const w of warnings) console.log(`  ⚠ ${w}`);
+  }
 
   if (errors.length > 0) {
     console.log(`\nErrors (${errors.length}):`);

@@ -285,6 +285,30 @@ search_queries:
 
 tracked_companies:
 
+  # -- Portfolio-wide boards (one entry, many employers) --
+  # A VC talent network (Consider) lists every company the fund has invested in, so new
+  # portfolio companies show up without editing this file. Filters live in the URL's
+  # query string: open the board, filter it in the browser, paste the URL you end up
+  # with. Keep postedSince so each scan reads a page rather than the whole board.
+  # Each posting links to the employer's own ATS, so the rest of the pipeline is
+  # unchanged. Uncomment and edit the filters to use it:
+  #
+  # - name: a16z Portfolio
+  #   careers_url: https://jobs.a16z.com/jobs?jobTypes=Product+Manager&postedSince=P7D&hybridOrRemoteOnly=true
+  #   enabled: true
+  #
+  # climate.jobs works the same way for the climate sector, except it publishes no
+  # API — the scanner reads its listing HTML and follows each match through to the
+  # employer's own posting, since the aggregator page carries only a summary.
+  # Filters go in the URL: /jobs/category/product/remote for product roles,
+  # /jobs/location/united-states/remote for US-remote, ?posted=7d for the last week.
+  # It phrases locations as prose ("Work remotely from UK"), so location_filter
+  # matches on the ISO country code the scanner appends — "(GB)", "(US)".
+  #
+  # - name: Climate Jobs
+  #   careers_url: https://climate.jobs/jobs/work-type/remote
+  #   enabled: true
+
   # -- AI Labs & LLM providers --
 
   - name: Anthropic

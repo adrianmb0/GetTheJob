@@ -35,7 +35,7 @@ mkdirSync(REPORTS_DIR, { recursive: true });
 
 const CANONICAL_STATUSES = [
   'shortlisted', 'evaluated', 'applied', 'responded', 'interview',
-  'offer', 'rejected', 'discarded', 'skip',
+  'offer', 'interviewed - rejected', 'rejected', 'discarded', 'skip',
 ];
 
 const ALIASES = {
@@ -45,6 +45,7 @@ const ALIASES = {
   'entrevista': 'interview',
   'oferta': 'offer',
   'rechazado': 'rejected', 'rechazada': 'rejected',
+  'interviewed-rejected': 'interviewed - rejected', 'interviewed rejected': 'interviewed - rejected', 'rejected after interview': 'interviewed - rejected',
   'descartado': 'discarded', 'descartada': 'discarded', 'cerrada': 'discarded', 'cancelada': 'discarded',
   'no aplicar': 'skip', 'no_aplicar': 'skip', 'monitor': 'skip', 'geo blocker': 'skip',
 };

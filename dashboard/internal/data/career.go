@@ -479,6 +479,10 @@ func NormalizeStatus(raw string) string {
 	// Most restrictive first — accepts both English and Spanish
 	case strings.Contains(s, "no aplicar") || strings.Contains(s, "no_aplicar") || s == "skip" || strings.Contains(s, "geo blocker"):
 		return "skip"
+	// Before the plain "interview" case: this status also contains the word, but
+	// it is a rejection, not an active process.
+	case strings.Contains(s, "interviewed") && strings.Contains(s, "rejected"):
+		return "interviewed_rejected"
 	case strings.Contains(s, "interview") || strings.Contains(s, "entrevista"):
 		return "interview"
 	case s == "offer" || strings.Contains(s, "oferta"):
@@ -600,12 +604,14 @@ func StatusPriority(status string) int {
 		return 4
 	case "skip":
 		return 5
-	case "rejected":
+	case "interviewed_rejected":
 		return 6
-	case "discarded":
+	case "rejected":
 		return 7
-	default:
+	case "discarded":
 		return 8
+	default:
+		return 9
 	}
 }
 

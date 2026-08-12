@@ -43,6 +43,12 @@ states:
     description: Offer received
     dashboard_group: offer
 
+  - id: interviewed_rejected
+    label: Interviewed - Rejected
+    aliases: [interviewed-rejected, rejected after interview, interviewed rejected]
+    description: Rejected, but only after reaching an interview. Kept apart from cold rejections because the company met the candidate and can be re-approached.
+    dashboard_group: interviewed_rejected
+
   - id: rejected
     label: Rejected
     aliases: [rechazado, rechazada]

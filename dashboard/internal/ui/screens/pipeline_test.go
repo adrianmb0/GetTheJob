@@ -94,3 +94,57 @@ func TestRenderAppLineIncludesDateColumn(t *testing.T) {
 		t.Fatalf("expected rendered line to include date column, got %q", line)
 	}
 }
+
+func TestDisplayGroupSplitsInterviewedRejections(t *testing.T) {
+	cases := []struct {
+		name  string
+		app   model.CareerApplication
+		group string
+	}{
+		{
+			name:  "interviewed then rejected",
+			app:   model.CareerApplication{Status: "Interviewed - Rejected"},
+			group: groupInterviewedRejected,
+		},
+		{
+			name:  "rejected without interviewing",
+			app:   model.CareerApplication{Status: "Rejected"},
+			group: "rejected",
+		},
+		{
+			name:  "still interviewing stays active",
+			app:   model.CareerApplication{Status: "Interview"},
+			group: "interview",
+		},
+		{
+			name:  "notes no longer decide the group",
+			app:   model.CareerApplication{Status: "Rejected", Notes: "interview 2026-07-24 via dashboard; rejected 2026-08-05"},
+			group: "rejected",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := displayGroup(tc.app); got != tc.group {
+				t.Fatalf("displayGroup = %q, want %q", got, tc.group)
+			}
+		})
+	}
+}
+
+func TestInterviewedRejectedSortsAboveRejected(t *testing.T) {
+	interviewed := model.CareerApplication{Status: "Interviewed - Rejected"}
+	cold := model.CareerApplication{Status: "Rejected"}
+	skipped := model.CareerApplication{Status: "SKIP"}
+	discarded := model.CareerApplication{Status: "Discarded"}
+
+	if groupPriority(interviewed) >= groupPriority(cold) {
+		t.Fatalf("interviewed rejection must sort above a cold one: %d vs %d", groupPriority(interviewed), groupPriority(cold))
+	}
+	if groupPriority(skipped) >= groupPriority(interviewed) {
+		t.Fatalf("skip must stay above the rejected groups: %d vs %d", groupPriority(skipped), groupPriority(interviewed))
+	}
+	if groupPriority(cold) >= groupPriority(discarded) {
+		t.Fatalf("discarded must stay below rejected: %d vs %d", groupPriority(cold), groupPriority(discarded))
+	}
+}

@@ -2,7 +2,7 @@
 
 Escanea portales de empleo configurados, filtra por relevancia de título, y añade nuevas ofertas al pipeline para evaluación posterior.
 
-> **Nota (v1.5+):** El escáner por defecto (`scan.mjs` / `npm run scan`) es **zero-token** y sólo consulta directamente las APIs públicas de Greenhouse, Ashby y Lever. Los niveles con Playwright/WebSearch descritos abajo son el flujo **agente** (ejecutado por Claude/Codex), no lo que hace `scan.mjs`. Si una empresa no tiene API Greenhouse/Ashby/Lever, `scan.mjs` la ignorará; para esos casos, el agente debe completar manualmente el Nivel 1 (Playwright) o Nivel 3 (WebSearch).
+> **Nota (v1.5+):** El escáner por defecto (`scan.mjs` / `npm run scan`) es **zero-token** y sólo consulta directamente las APIs públicas de Greenhouse, Ashby, Lever y Consider (boards de cartera de un fondo, tipo `jobs.a16z.com`), más `climate.jobs`, que no publica API y se lee desde el HTML de sus páginas de listado. Los niveles con Playwright/WebSearch descritos abajo son el flujo **agente** (ejecutado por Claude/Codex), no lo que hace `scan.mjs`. Si una empresa no tiene una de esas APIs, `scan.mjs` la ignorará; para esos casos, el agente debe completar manualmente el Nivel 1 (Playwright) o Nivel 3 (WebSearch).
 
 ## Ejecución recomendada
 
@@ -46,6 +46,8 @@ Para empresas con API pública o feed estructurado, usar la respuesta JSON/XML c
 - **Lever**: `https://api.lever.co/v0/postings/{company}?mode=json`
 - **Teamtailor**: `https://{company}.teamtailor.com/jobs.rss`
 - **Workday**: `https://{company}.{shard}.myworkdayjobs.com/wday/cxs/{company}/{site}/jobs`
+- **Consider**: `POST https://jobs.a16z.com/api-boards/search-jobs` (board de cartera: un endpoint, muchas empresas)
+- **climate.jobs**: sin API — su `robots.txt` prohíbe `/api/`. Se leen las páginas de listado (`https://climate.jobs/jobs/...`, HTML renderizado en servidor, 24 tarjetas por página vía `?page=N`)
 
 **Convención de parsing por provider:**
 - `greenhouse`: `jobs[]` → `title`, `absolute_url`
@@ -54,6 +56,8 @@ Para empresas con API pública o feed estructurado, usar la respuesta JSON/XML c
 - `lever`: array raíz `[]` → `text`, `hostedUrl` (fallback: `applyUrl`)
 - `teamtailor`: RSS items → `title`, `link`
 - `workday`: `jobPostings[]`/`jobPostings` (según tenant) → `title`, `externalPath` o URL construida desde el host
+- `consider`: `jobs[]` → `title`, `url` (ya apunta al ATS del empleador), `companyName`, `locations[]`, `salary.minValue`, `timeStamp`. Como `climatejobs`, la empresa sale del payload y no de `portals.yml`, porque un board de cartera cubre cientos de empleadores bajo una sola entrada
+- `climatejobs`: tarjetas `<article class="job-card">` → título (`<h3>`), empresa, ubicación (con el código ISO del país añadido, porque el board escribe la ubicación en prosa: "Work remotely from UK") y el enlace `/company/{empresa}/{puesto}`. Esa página **sólo tiene un resumen** y remite al anuncio original, así que para cada oferta que pasa los filtros se hace una segunda petición y se encola el enlace saliente (`?ref=climatejobs`) al ATS del empleador — no la página del agregador
 
 ### Nivel 3 — WebSearch queries (DESCUBRIMIENTO AMPLIO)
 
@@ -210,6 +214,8 @@ Fallback: si solo tienes la URL ATS directa, navega primero al sitio web de la e
 - **BambooHR:** lista `https://{company}.bamboohr.com/careers/list`; detalle `https://{company}.bamboohr.com/careers/{id}/detail`
 - **Teamtailor:** `https://{company}.teamtailor.com/jobs`
 - **Workday:** `https://{company}.{shard}.myworkdayjobs.com/{site}`
+- **Consider (red de talento de un fondo):** `https://jobs.a16z.com/jobs?{filtros}` — un solo board con toda la cartera
+- **climate.jobs (agregador del sector climático):** `https://climate.jobs/jobs/{filtros}` — un solo board con muchos empleadores. Filtros por ruta (`/jobs/category/product/remote`, `/jobs/location/united-states/remote`) o por query (`?posted=7d`)
 - **Custom:** La URL propia de la empresa (ej: `https://openai.com/careers`)
 
 **Patrones de API/feed por plataforma:**
@@ -218,6 +224,12 @@ Fallback: si solo tienes la URL ATS directa, navega primero al sitio web de la e
 - **Lever API:** `https://api.lever.co/v0/postings/{company}?mode=json`
 - **Teamtailor RSS:** `https://{company}.teamtailor.com/jobs.rss`
 - **Workday API:** `https://{company}.{shard}.myworkdayjobs.com/wday/cxs/{company}/{site}/jobs`
+- **Consider API:** `POST https://jobs.a16z.com/api-boards/search-jobs` con
+  `{"meta":{"size":200},"board":{"id":"andreessen-horowitz","isParent":true},"query":{…},"grouped":false}`.
+  Sin auth ni cookie. `scan.mjs` construye el `query` a partir del query string del `careers_url`
+  (`jobTypes` en slug, `stages` sin el paréntesis, `salaryMin` se aplica en local porque el board
+  lo ignora). Cada oferta trae su `companyName` y una `url` que apunta al ATS del empleador, así
+  que `batch/fetch-jd.mjs` ya sabe leerlas.
 
 **Si `careers_url` no existe** para una empresa:
 1. Intentar el patrón de su plataforma conocida
@@ -238,3 +250,6 @@ Fallback: si solo tienes la URL ATS directa, navega primero al sitio web de la e
 - Ajustar keywords de filtrado según evolucionen los roles target
 - Añadir empresas a `tracked_companies` cuando interese seguirlas de cerca
 - Verificar `careers_url` periódicamente — las empresas cambian de plataforma ATS
+- En un board Consider los filtros viven en el query string del `careers_url`: para cambiarlos,
+  filtra el board en el navegador y pega la URL resultante. Mantén `postedSince` — sin él el scan
+  lee sólo la primera página y avisa de lo que quedó fuera

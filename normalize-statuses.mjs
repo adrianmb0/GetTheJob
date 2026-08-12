@@ -67,7 +67,7 @@ function normalizeStatus(raw) {
   // Already canonical (English, per states.yml) — just fix casing/bold
   const canonical = [
     'Evaluated', 'Applied', 'Responded', 'Interview',
-    'Offer', 'Rejected', 'Discarded', 'SKIP',
+    'Offer', 'Interviewed - Rejected', 'Rejected', 'Discarded', 'SKIP',
   ];
   for (const c of canonical) {
     if (lower === c.toLowerCase()) return { status: c };

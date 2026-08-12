@@ -34,7 +34,7 @@ mkdirSync(join(CAREER_OPS, 'data'), { recursive: true });
 mkdirSync(ADDITIONS_DIR, { recursive: true });
 
 // Canonical states and aliases
-const CANONICAL_STATES = ['Evaluated', 'Applied', 'Responded', 'Interview', 'Offer', 'Rejected', 'Discarded', 'SKIP'];
+const CANONICAL_STATES = ['Shortlisted', 'Evaluated', 'Applied', 'Responded', 'Interview', 'Offer', 'Interviewed - Rejected', 'Rejected', 'Discarded', 'SKIP'];
 
 function validateStatus(status) {
   const clean = status.replace(/\*\*/g, '').replace(/\s+\d{4}-\d{2}-\d{2}.*$/, '').trim();
@@ -49,6 +49,8 @@ function validateStatus(status) {
     // Spanish → English
     'evaluada': 'Evaluated', 'condicional': 'Evaluated', 'hold': 'Evaluated', 'evaluar': 'Evaluated', 'verificar': 'Evaluated',
     'aplicado': 'Applied', 'enviada': 'Applied', 'aplicada': 'Applied', 'applied': 'Applied', 'sent': 'Applied',
+    'shortlist': 'Shortlisted', 'preseleccionada': 'Shortlisted', 'preseleccionado': 'Shortlisted',
+    'interviewed-rejected': 'Interviewed - Rejected', 'interviewed rejected': 'Interviewed - Rejected', 'rejected after interview': 'Interviewed - Rejected',
     'respondido': 'Responded',
     'entrevista': 'Interview',
     'oferta': 'Offer',
@@ -71,11 +73,26 @@ function normalizeCompany(name) {
   return name.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+// Generic title words carry no signal — "Senior Product Manager, X" and
+// "Senior Product Manager, Y" are different roles at the same company.
+const ROLE_STOPWORDS = new Set([
+  'product', 'manager', 'management', 'senior', 'staff', 'principal', 'lead',
+  'head', 'director', 'associate', 'group', 'technical', 'engineer', 'engineering',
+]);
+
 function roleFuzzyMatch(a, b) {
-  const wordsA = a.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-  const wordsB = b.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+  const distinctive = (s) => s.toLowerCase().split(/[^a-z0-9]+/)
+    .filter(w => w.length > 3 && !ROLE_STOPWORDS.has(w));
+  const wordsA = distinctive(a);
+  const wordsB = distinctive(b);
+  // Nothing distinctive on either side (e.g. plain "Senior Product Manager")
+  // — fall back to an exact title match so real duplicates still collapse.
+  if (!wordsA.length || !wordsB.length) {
+    return a.trim().toLowerCase() === b.trim().toLowerCase();
+  }
   const overlap = wordsA.filter(w => wordsB.some(wb => wb.includes(w) || w.includes(wb)));
-  return overlap.length >= 2;
+  const needed = Math.min(2, wordsA.length, wordsB.length);
+  return overlap.length >= needed;
 }
 
 function extractReportNum(reportStr) {
@@ -144,8 +161,8 @@ function parseTsvContent(content, filename) {
     const col5 = parts[5].trim();
     const col4LooksLikeScore = /^\d+\.?\d*\/5$/.test(col4) || col4 === 'N/A' || col4 === 'DUP';
     const col5LooksLikeScore = /^\d+\.?\d*\/5$/.test(col5) || col5 === 'N/A' || col5 === 'DUP';
-    const col4LooksLikeStatus = /^(evaluated|applied|responded|interview|offer|rejected|discarded|skip|evaluada|aplicado|respondido|entrevista|oferta|rechazado|descartado|no aplicar|cerrada|duplicado|repost|condicional|hold|monitor)/i.test(col4);
-    const col5LooksLikeStatus = /^(evaluated|applied|responded|interview|offer|rejected|discarded|skip|evaluada|aplicado|respondido|entrevista|oferta|rechazado|descartado|no aplicar|cerrada|duplicado|repost|condicional|hold|monitor)/i.test(col5);
+    const col4LooksLikeStatus = /^(interviewed - rejected|interviewed-rejected|shortlisted|evaluated|applied|responded|interview|offer|rejected|discarded|skip|evaluada|aplicado|respondido|entrevista|oferta|rechazado|descartado|no aplicar|cerrada|duplicado|repost|condicional|hold|monitor)/i.test(col4);
+    const col5LooksLikeStatus = /^(interviewed - rejected|interviewed-rejected|shortlisted|evaluated|applied|responded|interview|offer|rejected|discarded|skip|evaluada|aplicado|respondido|entrevista|oferta|rechazado|descartado|no aplicar|cerrada|duplicado|repost|condicional|hold|monitor)/i.test(col5);
 
     let statusCol, scoreCol;
     if (col4LooksLikeStatus && !col4LooksLikeScore) {

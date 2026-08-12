@@ -91,8 +91,23 @@ var sortCycle = []string{sortScore, sortDate, sortCompany, sortStatus}
 
 var statusOptions = []string{"Evaluated", "Applied", "Responded", "Interview", "Offer", "Rejected", "Discarded", "SKIP"}
 
+// groupInterviewedRejected matches the canonical "Interviewed - Rejected"
+// status (see templates/states.yml). A company that interviewed you and then
+// passed is a warmer lead than one that never replied, so it gets its own group.
+const groupInterviewedRejected = "interviewed_rejected"
+
 // statusGroupOrder defines display order for grouped view.
-var statusGroupOrder = []string{"interview", "offer", "responded", "applied", "evaluated", "skip", "rejected", "discarded"}
+var statusGroupOrder = []string{"interview", "offer", "responded", "applied", "evaluated", "skip", groupInterviewedRejected, "rejected", "discarded"}
+
+// displayGroup returns the board group for an application.
+func displayGroup(app model.CareerApplication) string {
+	return data.NormalizeStatus(app.Status)
+}
+
+// groupPriority orders the board groups.
+func groupPriority(app model.CareerApplication) int {
+	return data.StatusPriority(app.Status)
+}
 
 // PipelineModel implements the career pipeline dashboard screen.
 type PipelineModel struct {
@@ -466,8 +481,8 @@ func (m *PipelineModel) applyFilterAndSort() {
 	// In grouped mode, always sort by status priority first, then by selected sort within groups
 	if m.viewMode == "grouped" {
 		sort.SliceStable(filtered, func(i, j int) bool {
-			pi := data.StatusPriority(filtered[i].Status)
-			pj := data.StatusPriority(filtered[j].Status)
+			pi := groupPriority(filtered[i])
+			pj := groupPriority(filtered[j])
 			if pi != pj {
 				return pi < pj
 			}
@@ -657,8 +672,8 @@ func (m PipelineModel) renderMetrics() string {
 	statusColors := m.statusColorMap()
 
 	for _, status := range statusGroupOrder {
-		count, ok := m.metrics.ByStatus[status]
-		if !ok || count == 0 {
+		count := m.countByGroupAll(status)
+		if count == 0 {
 			continue
 		}
 		color := statusColors[status]
@@ -695,7 +710,7 @@ func (m PipelineModel) renderBody() string {
 	padStyle := lipgloss.NewStyle().Padding(0, 2)
 
 	for i, app := range m.filtered {
-		norm := data.NormalizeStatus(app.Status)
+		norm := displayGroup(app)
 
 		// Group header in grouped mode
 		if m.viewMode == "grouped" && norm != prevStatus {
@@ -921,15 +936,29 @@ func (m PipelineModel) statusColorMap() map[string]lipgloss.Color {
 		"responded": m.theme.Blue,
 		"evaluated": m.theme.Text,
 		"skip":      m.theme.Red,
-		"rejected":  m.theme.Subtext,
-		"discarded": m.theme.Subtext,
+		// Warmer than a cold rejection: these companies met him.
+		groupInterviewedRejected: m.theme.Peach,
+		"rejected":               m.theme.Subtext,
+		"discarded":              m.theme.Subtext,
 	}
 }
 
 func (m PipelineModel) countByNormStatus(status string) int {
 	count := 0
 	for _, app := range m.filtered {
-		if data.NormalizeStatus(app.Status) == status {
+		if displayGroup(app) == status {
+			count++
+		}
+	}
+	return count
+}
+
+// countByGroupAll counts every loaded application in a board group, including
+// the display-only groups that PipelineMetrics.ByStatus does not know about.
+func (m PipelineModel) countByGroupAll(group string) int {
+	count := 0
+	for _, app := range m.apps {
+		if displayGroup(app) == group {
 			count++
 		}
 	}
@@ -962,6 +991,8 @@ func statusLabel(norm string) string {
 		return "Evaluated"
 	case "skip":
 		return "Skip"
+	case groupInterviewedRejected:
+		return "Interviewed - Rejected"
 	case "rejected":
 		return "Rejected"
 	case "discarded":
