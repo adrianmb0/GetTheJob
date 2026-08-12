@@ -920,9 +920,12 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .kc.is-new { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
 
 /* ----- pipeline board ----- */
-.board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; align-items: start; }
-@media (max-width: 1100px) { .board { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 680px) { .board { grid-template-columns: 1fr; } }
+/* minmax(0, 1fr) — a bare 1fr means minmax(auto, 1fr), so a column with long
+   role titles pushes past its share and the rest get squeezed. That is what
+   left the rail at 155px, wrapping its heading and clipping the card menu. */
+.board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: start; }
+@media (max-width: 1100px) { .board { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 680px) { .board { grid-template-columns: minmax(0, 1fr); } }
 /* Rejected: collapsible leftmost rail. Header matches other columns; when
    collapsed, a stacked-card "peek" below hints there's hidden content. */
 /* The rail opens by growing into its own height — grid-template-rows 0fr → 1fr
@@ -936,6 +939,12 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
    outer track resolves before they have a size. */
 .col-rejected .col-body { overflow: hidden; transition: height .34s cubic-bezier(.22,.61,.36,1); }
 .col-rejected.collapsed { min-height: 0; }
+.col-rejected.collapsed { cursor: pointer; }
+.col-rejected.collapsed:hover { border-color: var(--accent); }
+/* The peek shows cards, nothing else: section headings are structure, and
+   structure is not what you are trying to see when you glance at the rail. */
+.col-rejected.collapsed .rej-sec-h { display: none; }
+.col-rejected.collapsed .rej-sec + .rej-sec { margin-top: 0; }
 .col-rejected.collapsed .col-body { height: var(--rej-peek-h); pointer-events: none;
   -webkit-mask-image: linear-gradient(to bottom, #000 34%, rgba(0,0,0,.45) 74%, transparent 100%);
   mask-image: linear-gradient(to bottom, #000 34%, rgba(0,0,0,.45) 74%, transparent 100%); }
@@ -954,12 +963,11 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .col-rejected:not(.collapsed) .col-h-toggle .chev { transform: rotate(90deg); }
 /* Collapsed affordance: a stack of ghost cards that folds away as the real
    cards arrive. It shares the open/close timing so the two read as one motion. */
-.rej-peek { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .34s cubic-bezier(.22,.61,.36,1), opacity .18s ease; }
-.rej-peek > * { min-height: 0; overflow: hidden; }
-.col-rejected.collapsed .rej-peek { grid-template-rows: 1fr; opacity: 1; cursor: pointer; transition: grid-template-rows .34s cubic-bezier(.22,.61,.36,1), opacity .26s ease .08s; }
-.rej-peek-inner { padding: 4px 0 2px; }
+.rej-peek { height: 0; overflow: hidden; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
+.col-rejected.collapsed .rej-peek { height: auto; opacity: 1; transition: opacity .24s ease .1s; }
+.rej-peek-inner { padding: 7px 0 1px; }
 .rej-peek-cap { text-align: center; font-size: 11px; font-weight: 600; color: var(--muted); transition: color .18s ease; }
-.col-rejected.collapsed:hover .rej-peek-cap { color: var(--ink); }
+.col-rejected.collapsed:hover .rej-peek-cap { color: var(--accent); }
 /* Subsections inside the Rejected rail: interviewed-then-rejected sits on top,
    marked warm, because those companies met him and can be re-approached. */
 .rej-sec + .rej-sec { margin-top: 12px; }
@@ -3901,10 +3909,16 @@ function submitAddPosting(e) {
     body.addEventListener('transitionend', onEnd);
     settle = setTimeout(finish, 420);
   }
-  const targets = [header, col.querySelector('.rej-peek')].filter(Boolean);
-  targets.forEach(t => {
-    t.addEventListener('click', toggle);
-    t.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+  // Two rules, so it is always obvious what a click does:
+  //   collapsed → anywhere on the rail opens it
+  //   expanded  → only the header closes it; everything else belongs to a card
+  //               or to a subsection heading
+  col.addEventListener('click', (e) => {
+    if (col.classList.contains('collapsed')) { toggle(); return; }
+    if (e.target.closest('.col-h-toggle')) toggle();
+  });
+  header.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
   });
 
   // Each subsection folds independently, and remembers.
@@ -3913,6 +3927,7 @@ function submitAddPosting(e) {
     const secKey = 'getthejob-rejsec-' + h.dataset.seckey;
     if (localStorage.getItem(secKey) === '1') sec.classList.add('sec-collapsed');
     const toggleSec = (e) => {
+      if (col.classList.contains('collapsed')) return;
       if (e) e.stopPropagation();
       const isCollapsed = sec.classList.toggle('sec-collapsed');
       localStorage.setItem(secKey, isCollapsed ? '1' : '0');
