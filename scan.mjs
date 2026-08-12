@@ -215,14 +215,16 @@ const PARSERS = {
 // ── climate.jobs (HTML board) ───────────────────────────────────────
 
 function stripTags(html) {
+  // &amp; is decoded LAST. Decoding it first would turn "&amp;lt;" into "&lt;"
+  // and then into "<", double-unescaping a title that was correctly encoded.
   return html
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
     .replace(/&#0?39;|&#x27;/gi, "'")
     .replace(/&quot;/g, '"')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
     .trim();
 }
