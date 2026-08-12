@@ -928,15 +928,17 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 /* The rail opens by growing into its own height — grid-template-rows 0fr → 1fr
    is the one way to transition to "auto" — so the column itself expands rather
    than a panel appearing over the board. */
-.col-rejected { position: relative; }
-/* Height is animated from a measured value in JS. The 0fr→1fr grid trick
-   collapses to 0 here because the subsections inside are transitioning grids of
-   their own, and the outer track resolves before they have a size. */
+.col-rejected { position: relative; --rej-peek-h: 122px; }
+/* Collapsed, the rail crops the real cards and fades them out — the preview is
+   the content itself, so opening just grows the crop away. Height is animated
+   from a measured value in JS: the 0fr→1fr grid trick collapses to 0 here
+   because the subsections inside are transitioning grids of their own, and the
+   outer track resolves before they have a size. */
 .col-rejected .col-body { overflow: hidden; transition: height .34s cubic-bezier(.22,.61,.36,1); }
-.rej-body-inner { transition: opacity .26s ease .04s; }
 .col-rejected.collapsed { min-height: 0; }
-.col-rejected.collapsed .col-body { height: 0; }
-.col-rejected.collapsed .rej-body-inner { opacity: 0; transition: opacity .16s ease; }
+.col-rejected.collapsed .col-body { height: var(--rej-peek-h); pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 34%, rgba(0,0,0,.45) 74%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 34%, rgba(0,0,0,.45) 74%, transparent 100%); }
 /* Suppress the transition while the collapsed state is restored on load. */
 .col-rejected.no-anim .col-body, .col-rejected.no-anim .rej-peek, .col-rejected.no-anim .rej-body-inner { transition: none; }
 .col-h-toggle { cursor: pointer; user-select: none; }
@@ -947,17 +949,9 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .rej-peek { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .34s cubic-bezier(.22,.61,.36,1), opacity .18s ease; }
 .rej-peek > * { min-height: 0; overflow: hidden; }
 .col-rejected.collapsed .rej-peek { grid-template-rows: 1fr; opacity: 1; cursor: pointer; transition: grid-template-rows .34s cubic-bezier(.22,.61,.36,1), opacity .26s ease .08s; }
-.rej-peek-inner { padding-bottom: 6px; }
-.rej-peek-ghost { height: 30px; border: 1px solid var(--border); border-radius: 10px; background: var(--canvas); position: relative; transition: transform .22s ease; }
-.rej-peek-ghost::before, .rej-peek-ghost::after { content: ''; position: absolute; left: 8px; right: 8px; border: 1px solid var(--border); border-top: none; border-radius: 0 0 9px 9px; background: var(--canvas); height: 6px; transition: bottom .22s ease; }
-.rej-peek-ghost::before { bottom: -5px; }
-.rej-peek-ghost::after { bottom: -9px; left: 13px; right: 13px; opacity: .55; }
-.rej-peek-cap { margin-top: 15px; text-align: center; font-size: 11px; color: var(--muted); transition: opacity .18s ease; }
-/* Hover lifts the stack a little — an invitation to click, not a preview. */
-.col-rejected.collapsed:hover .rej-peek-ghost { transform: translateY(-2px); }
-.col-rejected.collapsed:hover .rej-peek-ghost::before { bottom: -7px; }
-.col-rejected.collapsed:hover .rej-peek-ghost::after { bottom: -13px; }
-.col-rejected.collapsed:hover .rej-peek-cap { opacity: .5; }
+.rej-peek-inner { padding: 4px 0 2px; }
+.rej-peek-cap { text-align: center; font-size: 11px; font-weight: 600; color: var(--muted); transition: color .18s ease; }
+.col-rejected.collapsed:hover .rej-peek-cap { color: var(--ink); }
 /* Subsections inside the Rejected rail: interviewed-then-rejected sits on top,
    marked warm, because those companies met him and can be re-approached. */
 .rej-sec + .rej-sec { margin-top: 12px; }
@@ -3692,7 +3686,7 @@ function renderPipeline(query) {
     // toggle (chevron), and it carries a distinct class so JS/CSS can fold it.
     if (c.key === 'Rejected') {
       const peek = cards.length
-        ? `<div class="rej-peek" role="button" tabindex="0" title="Show rejected roles"><div class="rej-peek-inner"><div class="rej-peek-ghost"></div><div class="rej-peek-cap">click to show</div></div></div>`
+        ? `<div class="rej-peek" role="button" tabindex="0" title="Show rejected roles"><div class="rej-peek-inner"><div class="rej-peek-cap">show all ${cards.length}</div></div></div>`
         : '';
       // Split the rail by status: interviewed-then-rejected on top. Each half is
       // its own drop zone, so dragging a card into (or between) them is what
@@ -3716,7 +3710,7 @@ function renderPipeline(query) {
         + section('No interview', 'Rejected', coldRejected, 'cold', false);
       // The body is wrapped so the column can grow into its own height with a
       // grid-template-rows transition, instead of snapping open with display:none.
-      return `<div class="col col-rejected" data-status="Rejected" data-statuses="${c.statuses.join(',')}"><div class="col-h col-h-toggle" role="button" tabindex="0" title="Show/hide rejected roles"><span><span class="chev">▸</span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div>${peek}<div class="col-body"><div class="rej-body-inner">${body}</div></div></div>`;
+      return `<div class="col col-rejected" data-status="Rejected" data-statuses="${c.statuses.join(',')}"><div class="col-h col-h-toggle" role="button" tabindex="0" title="Show/hide rejected roles"><span><span class="chev">▸</span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div><div class="col-body"><div class="rej-body-inner">${body}</div></div>${peek}</div>`;
     }
     return `<div class="col" data-status="${c.statuses[0]}" data-statuses="${c.statuses.join(',')}"><div class="col-h"><span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div>${inner}</div>`;
   }).join('');
@@ -3877,10 +3871,11 @@ function submitAddPosting(e) {
     if (onEnd) { body.removeEventListener('transitionend', onEnd); onEnd = null; }
 
     const collapsing = !col.classList.contains('collapsed');
-    body.style.height = (collapsing ? body.getBoundingClientRect().height : 0) + 'px';
+    const peekH = parseFloat(getComputedStyle(col).getPropertyValue('--rej-peek-h')) || 122;
+    body.style.height = (collapsing ? body.getBoundingClientRect().height : peekH) + 'px';
     void body.offsetHeight;
     col.classList.toggle('collapsed', collapsing);
-    body.style.height = (collapsing ? 0 : inner.getBoundingClientRect().height) + 'px';
+    body.style.height = (collapsing ? peekH : inner.getBoundingClientRect().height) + 'px';
     localStorage.setItem(KEY, collapsing ? '1' : '0');
 
     // Hand the height back to CSS once open, so the column keeps tracking its
