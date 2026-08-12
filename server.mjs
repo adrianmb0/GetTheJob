@@ -981,9 +981,9 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 /* Same growth as the rail, so folding a half reads as the same gesture. */
 .rej-sec-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .3s cubic-bezier(.22,.61,.36,1); }
 .rej-sec-body > * { min-height: 0; overflow: hidden; }
-.rej-sec.sec-collapsed .sec-chev { transform: rotate(-90deg); }
-.rej-sec.sec-collapsed .rej-sec-body { grid-template-rows: 0fr; }
-.rej-sec.sec-collapsed .rej-sec-h { padding-bottom: 2px; }
+.col-rejected:not(.collapsed) .rej-sec.sec-collapsed .sec-chev { transform: rotate(-90deg); }
+.col-rejected:not(.collapsed) .rej-sec.sec-collapsed .rej-sec-body { grid-template-rows: 0fr; }
+.col-rejected:not(.collapsed) .rej-sec.sec-collapsed .rej-sec-h { padding-bottom: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .col-rejected .col-body, .rej-peek, .rej-sec-body, .rej-body-inner, .col-h-toggle .chev, .sec-chev { transition: none; }
 }
@@ -3887,6 +3887,7 @@ function submitAddPosting(e) {
     if (onEnd) { body.removeEventListener('transitionend', onEnd); onEnd = null; }
 
     const collapsing = !col.classList.contains('collapsed');
+    if (collapsing) col.querySelectorAll('.rej-sec.sec-collapsed').forEach(sec => sec.classList.remove('sec-collapsed'));
     body.style.height = body.getBoundingClientRect().height + 'px';
     void body.offsetHeight;
     col.classList.toggle('collapsed', collapsing);
@@ -3921,16 +3922,14 @@ function submitAddPosting(e) {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
   });
 
-  // Each subsection folds independently, and remembers.
+  // Each half folds independently while the rail is open. Not persisted, and
+  // cleared when the rail closes — see toggle().
   col.querySelectorAll('.rej-sec-h[data-seckey]').forEach(h => {
     const sec = h.closest('.rej-sec');
-    const secKey = 'getthejob-rejsec-' + h.dataset.seckey;
-    if (localStorage.getItem(secKey) === '1') sec.classList.add('sec-collapsed');
     const toggleSec = (e) => {
       if (col.classList.contains('collapsed')) return;
       if (e) e.stopPropagation();
-      const isCollapsed = sec.classList.toggle('sec-collapsed');
-      localStorage.setItem(secKey, isCollapsed ? '1' : '0');
+      sec.classList.toggle('sec-collapsed');
     };
     h.addEventListener('click', toggleSec);
     h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSec(e); } });
