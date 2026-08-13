@@ -941,10 +941,6 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .col-rejected.collapsed { min-height: 0; }
 .col-rejected.collapsed { cursor: pointer; }
 .col-rejected.collapsed:hover { border-color: var(--accent); }
-/* The peek shows cards, nothing else: section headings are structure, and
-   structure is not what you are trying to see when you glance at the rail. */
-.col-rejected.collapsed .rej-sec-h { display: none; }
-.col-rejected.collapsed .rej-sec + .rej-sec { margin-top: 0; }
 .col-rejected.collapsed .col-body { height: var(--rej-peek-h); pointer-events: none;
   -webkit-mask-image: linear-gradient(to bottom, #000 34%, rgba(0,0,0,.45) 74%, transparent 100%);
   mask-image: linear-gradient(to bottom, #000 34%, rgba(0,0,0,.45) 74%, transparent 100%); }
@@ -972,20 +968,13 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
    marked warm, because those companies met him and can be re-approached. */
 .rej-sec + .rej-sec { margin-top: 12px; }
 .rej-sec.drop-target { outline: 2px dashed var(--accent); outline-offset: 3px; border-radius: 10px; background: var(--accent-weak); }
-.rej-sec-h { display: flex; align-items: center; gap: 7px; font-size: 10.5px; font-weight: 720; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding: 0 2px 7px; cursor: pointer; user-select: none; }
+.rej-sec-h { display: flex; align-items: center; gap: 7px; font-size: 10.5px; font-weight: 720; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding: 0 2px 7px; }
 .rej-sec-h::after { content: ''; order: 2; flex: 1; height: 1px; background: var(--border); }
 .rej-sec-c { order: 3; font-weight: 730; font-size: 10px; color: var(--muted); background: var(--neutral-bg); border-radius: 999px; padding: 1px 7px; }
 .rej-sec-warm { color: #B4534B; }
 .rej-sec-warm::after { background: rgba(180, 83, 75, .28); }
-.sec-chev { font-size: 9px; line-height: 1; transition: transform .28s cubic-bezier(.22,.61,.36,1); }
-/* Same growth as the rail, so folding a half reads as the same gesture. */
-.rej-sec-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .3s cubic-bezier(.22,.61,.36,1); }
-.rej-sec-body > * { min-height: 0; overflow: hidden; }
-.col-rejected:not(.collapsed) .rej-sec.sec-collapsed .sec-chev { transform: rotate(-90deg); }
-.col-rejected:not(.collapsed) .rej-sec.sec-collapsed .rej-sec-body { grid-template-rows: 0fr; }
-.col-rejected:not(.collapsed) .rej-sec.sec-collapsed .rej-sec-h { padding-bottom: 2px; }
 @media (prefers-reduced-motion: reduce) {
-  .col-rejected .col-body, .rej-peek, .rej-sec-body, .rej-body-inner, .col-h-toggle .chev, .sec-chev { transition: none; }
+  .col-rejected .col-body, .rej-peek, .rej-body-inner, .col-h-toggle .chev { transition: none; }
 }
 .col { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 11px; min-height: 180px; }
 .col.drop-target { outline: 2px dashed var(--accent); outline-offset: -4px; background: var(--accent-weak); }
@@ -3711,19 +3700,17 @@ function renderPipeline(query) {
       const statusOf = (r) => (r[idx.status] || '').trim();
       const interviewed = cards.filter(r => statusOf(r) === INTERVIEWED_REJECTED);
       const coldRejected = cards.filter(r => statusOf(r) !== INTERVIEWED_REJECTED);
-      const section = (label, status, list, key, warm) => {
+      const section = (label, status, list, warm) => {
         const bodyInner = list.length
           ? list.map(card).join('')
           : `<div class="kc-empty">Drag a card here</div>`;
         return `<div class="rej-sec" data-status="${escapeHtml(status)}" data-statuses="${escapeHtml(status)}">
-          <div class="rej-sec-h${warm ? ' rej-sec-warm' : ''}" role="button" tabindex="0" data-seckey="${key}" title="Show/hide these">
-            <span class="sec-chev">▾</span>${label}<span class="rej-sec-c">${list.length}</span>
-          </div>
-          <div class="rej-sec-body"><div class="rej-sec-inner">${bodyInner}</div></div>
+          <div class="rej-sec-h${warm ? ' rej-sec-warm' : ''}">${label}<span class="rej-sec-c">${list.length}</span></div>
+          <div class="rej-sec-body">${bodyInner}</div>
         </div>`;
       };
-      const body = section('Interviewed', INTERVIEWED_REJECTED, interviewed, 'interviewed', true)
-        + section('No interview', 'Rejected', coldRejected, 'cold', false);
+      const body = section('Interviewed', INTERVIEWED_REJECTED, interviewed, true)
+        + section('No interview', 'Rejected', coldRejected, false);
       // The body is wrapped so the column can grow into its own height with a
       // grid-template-rows transition, instead of snapping open with display:none.
       return `<div class="col col-rejected" data-status="Rejected" data-statuses="${c.statuses.join(',')}"><div class="col-h col-h-toggle" role="button" tabindex="0" title="Show/hide rejected roles"><span><span class="chev">▸</span><span class="dot" style="background:${c.dot}"></span>${c.key}</span><span class="c">${cards.length}</span></div><div class="col-body"><div class="rej-body-inner">${body}</div></div>${peek}</div>`;
@@ -3887,7 +3874,6 @@ function submitAddPosting(e) {
     if (onEnd) { body.removeEventListener('transitionend', onEnd); onEnd = null; }
 
     const collapsing = !col.classList.contains('collapsed');
-    if (collapsing) col.querySelectorAll('.rej-sec.sec-collapsed').forEach(sec => sec.classList.remove('sec-collapsed'));
     body.style.height = body.getBoundingClientRect().height + 'px';
     void body.offsetHeight;
     col.classList.toggle('collapsed', collapsing);
@@ -3922,18 +3908,6 @@ function submitAddPosting(e) {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
   });
 
-  // Each half folds independently while the rail is open. Not persisted, and
-  // cleared when the rail closes — see toggle().
-  col.querySelectorAll('.rej-sec-h[data-seckey]').forEach(h => {
-    const sec = h.closest('.rej-sec');
-    const toggleSec = (e) => {
-      if (col.classList.contains('collapsed')) return;
-      if (e) e.stopPropagation();
-      sec.classList.toggle('sec-collapsed');
-    };
-    h.addEventListener('click', toggleSec);
-    h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSec(e); } });
-  });
 })();
 </script>
 `;
