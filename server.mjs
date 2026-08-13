@@ -948,10 +948,17 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
    growth as a click, just a shorter distance, so the peek and the open are one
    gesture at two depths rather than a popup pretending to be a preview. The
    board does not reflow: columns are top-aligned, so only this one grows. */
-.col-rejected.collapsed:hover .col-body, .col-rejected.collapsed:focus-within .col-body {
+.col-rejected.collapsed:hover .col-body, .col-rejected.collapsed:has(:focus-visible) .col-body {
   height: var(--rej-peek-hover-h);
   -webkit-mask-image: linear-gradient(to bottom, #000 66%, rgba(0,0,0,.5) 86%, transparent 100%);
   mask-image: linear-gradient(to bottom, #000 66%, rgba(0,0,0,.5) 86%, transparent 100%); }
+/* Set while collapsing, cleared on mouseleave: closing the rail with the cursor
+   still on it must settle at the resting peek instead of springing back up.
+   Needs the extra class to outrank the hover rule above — same specificity
+   would just lose on source order. */
+.col-rejected.collapsed.hover-off:hover .col-body { height: var(--rej-peek-h);
+  -webkit-mask-image: linear-gradient(to bottom, #000 34%, rgba(0,0,0,.45) 74%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 34%, rgba(0,0,0,.45) 74%, transparent 100%); }
 /* Suppress the transition while the collapsed state is restored on load. */
 .col-rejected.no-anim .col-body, .col-rejected.no-anim .rej-peek, .col-rejected.no-anim .rej-body-inner { transition: none; }
 .col-h-toggle { cursor: pointer; user-select: none; }
@@ -3874,6 +3881,7 @@ function submitAddPosting(e) {
     if (onEnd) { body.removeEventListener('transitionend', onEnd); onEnd = null; }
 
     const collapsing = !col.classList.contains('collapsed');
+    col.classList.toggle('hover-off', collapsing);
     body.style.height = body.getBoundingClientRect().height + 'px';
     void body.offsetHeight;
     col.classList.toggle('collapsed', collapsing);
@@ -3904,6 +3912,7 @@ function submitAddPosting(e) {
     if (col.classList.contains('collapsed')) { toggle(); return; }
     if (e.target.closest('.col-h-toggle')) toggle();
   });
+  col.addEventListener('mouseleave', () => col.classList.remove('hover-off'));
   header.addEventListener('keydown', e => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
   });
