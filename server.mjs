@@ -133,6 +133,7 @@ function readExistingSetup() {
     payOpen: comp.open === true,
     currency: ySt(comp.currency) || 'USD',
     workpref: ['remote', 'hybrid', 'onsite'].includes(wp) ? wp : 'hybrid',
+    maxJobAgeDays: readMaxJobAge(),
     avoid: (guard.hard || []).filter(s => s !== SYNTH_ONSITE_HARD && isAvoidBoxItem(s)).join(', '),
     companies: tracked.filter(c => c && c.name && c.careers_url).map(c => {
       const o = { name: ySt(c.name), careers_url: ySt(c.careers_url) };
@@ -1075,6 +1076,11 @@ h3 { font-size: 15px; margin: 20px 0 6px; }
 .rule-del { flex: 0 0 auto; width: 30px; height: 33px; border: 1px solid var(--border); background: transparent; border-radius: 8px; cursor: pointer; color: var(--muted); font-size: 15px; line-height: 1; }
 .rule-del:hover { border-color: #b4413c; color: #b4413c; }
 .rules-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+/* Inbox freshness: one compact row under the two rule columns. */
+.rules-fresh { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
+.rules-fresh .rf-sub { color: var(--muted); font-size: 12.5px; }
+.rules-fresh select { padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; font-family: inherit; background: var(--canvas); color: var(--ink); }
+.rules-fresh select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
 .btn-add-row { background: transparent; border: 1px dashed var(--border); border-radius: 8px; padding: 6px 11px; cursor: pointer; font-size: 12.5px; color: var(--muted); }
 .btn-add-row:hover { border-color: var(--accent); color: var(--accent); }
 .btn-save { background: var(--accent); color: #fff; border: none; border-radius: 9px; padding: 8px 18px; cursor: pointer; font-size: 13px; font-weight: 600; }
@@ -1186,6 +1192,8 @@ async function loadGuardrails() {
     hard.innerHTML = ''; soft.innerHTML = '';
     (d.hard || []).forEach(it => addRuleRow('hard', it, false));
     (d.soft || []).forEach(it => addRuleRow('soft', it, false));
+    const ageSel = document.getElementById('guard-max-age');
+    if (ageSel && d.maxJobAgeDays != null) ageSel.value = String(d.maxJobAgeDays);
     guardrailsLoaded = true;
   } catch (e) { hard.innerHTML = '<div class="muted" style="padding:6px 0">Could not load scoring rules.</div>'; }
 }
@@ -1208,10 +1216,12 @@ function addRuleRow(group, val, doFocus) {
 async function saveGuardrails(btn) {
   const collect = g => Array.from(document.querySelectorAll('#guard-' + g + ' textarea')).map(t => t.value.trim()).filter(Boolean);
   const hard = collect('hard'), soft = collect('soft');
+  const ageSel = document.getElementById('guard-max-age');
+  const maxJobAgeDays = ageSel ? parseInt(ageSel.value, 10) : undefined;
   const msg = document.getElementById('guardrails-msg');
   btn.disabled = true; if (msg) { msg.style.color = 'var(--muted)'; msg.textContent = 'Saving…'; }
   try {
-    const d = await (await fetch('/api/guardrails', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hard, soft }) })).json();
+    const d = await (await fetch('/api/guardrails', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hard, soft, maxJobAgeDays }) })).json();
     if (!d.ok) { if (msg) { msg.style.color = '#b4413c'; msg.textContent = 'Save failed: ' + (d.error || 'unknown'); } return; }
     if (msg) { msg.style.color = '#3A6B45'; msg.textContent = 'Saved — ' + d.hard + ' hard, ' + d.soft + ' soft. Applies on the next scoring run.'; }
   } catch (e) { if (msg) { msg.style.color = '#b4413c'; msg.textContent = 'Save failed: ' + e.message; } }
@@ -1810,6 +1820,11 @@ input.ob-invalid, textarea.ob-invalid { border-color: var(--danger) !important; 
           <input type="text" id="ob-avoid" placeholder="Crypto, my current employer, Director+" autocomplete="off">
         </div>
       </div>
+      <div class="ob-field" style="margin-top:14px">
+        <label for="ob-max-age">Inbox freshness</label>
+        <div class="ob-hint">Jobs older than this are purged from your inbox on each scan — applying to old postings rarely converts.</div>
+        <select id="ob-max-age"><option value="3">3 days</option><option value="7" selected>1 week</option><option value="14">2 weeks</option><option value="30">30 days</option><option value="0">Never purge</option></select>
+      </div>
     </div>
   </details>
 
@@ -1989,7 +2004,7 @@ const PREVIEW_MODE = ${previewMode ? 'true' : 'false'};
 const PREFILL = ${prefillJson};
 const LAST_STEP = 3;
 const DRAFT_KEY = 'gtj-onboarding-draft';
-const DRAFT_FIELDS = ['ob-name','ob-email','ob-location','ob-linkedin','ob-comp','ob-currency','ob-workpref','ob-avoid','ob-cv','ob-headline','ob-exit-story','ob-proof-name','ob-proof-metric','ob-proof-detail','ob-other-text'];
+const DRAFT_FIELDS = ['ob-name','ob-email','ob-location','ob-linkedin','ob-comp','ob-currency','ob-workpref','ob-avoid','ob-max-age','ob-cv','ob-headline','ob-exit-story','ob-proof-name','ob-proof-metric','ob-proof-detail','ob-other-text'];
 
 const state = {
   step: 1,
@@ -2095,6 +2110,11 @@ function applyPrefill() {
   // answered now — otherwise a re-run would quietly drop it.
   if (PREFILL.workpref) state.workprefTouched = true;
   set('ob-avoid', PREFILL.avoid);
+  // 0 ("never purge") is falsy, so the set() helper would skip it — set directly.
+  if (PREFILL.maxJobAgeDays != null) {
+    const ageEl = document.getElementById('ob-max-age');
+    if (ageEl) ageEl.value = String(PREFILL.maxJobAgeDays);
+  }
   set('ob-cv', PREFILL.cv);
   set('ob-headline', PREFILL.headline);
   set('ob-exit-story', PREFILL.exitStory);
@@ -2125,7 +2145,7 @@ function applyPrefill() {
   // Open the collapsed sections that hold restored answers — a value hidden
   // inside a closed <details> looks exactly like a value that was lost.
   if (PREFILL.linkedin) openDetailsFor('ob-linkedin');
-  if (PREFILL.comp || PREFILL.payOpen || PREFILL.avoid || (PREFILL.workpref && PREFILL.workpref !== 'hybrid')) openDetailsFor('ob-comp');
+  if (PREFILL.comp || PREFILL.payOpen || PREFILL.avoid || (PREFILL.workpref && PREFILL.workpref !== 'hybrid') || (PREFILL.maxJobAgeDays != null && PREFILL.maxJobAgeDays !== 7)) openDetailsFor('ob-comp');
   if (PREFILL.headline || PREFILL.exitStory || (PREFILL.strengths || []).length || PREFILL.proofName) openDetailsFor('ob-headline');
   return true;
 }
@@ -2970,6 +2990,7 @@ async function completeOnboarding(btn) {
     // Did the user actually answer, or is this just the select's default? The server
     // refuses to record an unanswered work style as a stated preference.
     workprefSet: state.workprefTouched === true,
+    maxJobAgeDays: document.getElementById('ob-max-age') ? parseInt(document.getElementById('ob-max-age').value, 10) : 7,
     avoid: val('ob-avoid'),
     cv: cvText,
     headline: headline,
@@ -4182,6 +4203,50 @@ function writeGuardrails(hard, soft) {
   return { hard: H.length, soft: S.length };
 }
 
+// Inbox freshness: purge inbox jobs older than this many days on each find-jobs
+// run. Lives in config/profile.yml under preferences.max_job_age_days; 0 = never
+// purge. scripts/purge-stale-inbox.mjs reads the same key.
+const MAX_AGE_CHOICES = [
+  { days: 3, label: '3 days' },
+  { days: 7, label: '1 week' },
+  { days: 14, label: '2 weeks' },
+  { days: 30, label: '30 days' },
+  { days: 0, label: 'Never' },
+];
+const MAX_AGE_COMMENT = '   # purge inbox jobs older than this on each scan (0 = never)';
+function readMaxJobAge() {
+  try {
+    const prof = loadYamlFile('config/profile.yml');
+    const v = prof && prof.preferences && prof.preferences.max_job_age_days;
+    if (v === 0) return 0;
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) && n > 0 ? n : 7;
+  } catch { return 7; }
+}
+// Line-level edit: replace or insert just the one key so the rest of the
+// hand-written YAML stays byte-identical (the wizard's full-file writer is
+// deliberately lossy-safe and must not be reused for a single-key save).
+function writeMaxJobAge(days) {
+  const p = join(ROOT, 'config', 'profile.yml');
+  const keyLine = '  max_job_age_days: ' + days + MAX_AGE_COMMENT;
+  let text = existsSync(p) ? readFileSync(p, 'utf8') : '';
+  const lines = text.split('\n');
+  const keyIdx = lines.findIndex(l => /^\s*max_job_age_days\s*:/.test(l));
+  if (keyIdx >= 0) {
+    lines[keyIdx] = keyLine;
+    writeFileSync(p, lines.join('\n'));
+    return;
+  }
+  const prefIdx = lines.findIndex(l => /^preferences\s*:/.test(l));
+  if (prefIdx >= 0) {
+    lines.splice(prefIdx + 1, 0, keyLine);
+    writeFileSync(p, lines.join('\n'));
+    return;
+  }
+  if (text && !text.endsWith('\n')) text += '\n';
+  writeFileSync(p, text + '\npreferences:\n' + keyLine + '\n');
+}
+
 // Inbox UI snippet: the "Scoring rules" toggle button + the editor panel.
 function guardrailsUI() {
   return `<button id="rules-toggle" class="btn-rules" aria-expanded="false" aria-controls="guardrails-panel" onclick="toggleGuardrails()" title="Hard exclusions and soft penalties applied when postings are scored">⚖<span>Scoring rules</span><span class="caret">▾</span></button>`;
@@ -4199,6 +4264,11 @@ function guardrailsPanel(open) {
       <div id="guard-soft" class="rule-list"></div>
       <button type="button" class="btn-add-row" onclick="addRuleRow('soft','',true)">+ Add soft penalty</button>
     </div>
+  </div>
+  <div class="rules-fresh">
+    <label for="guard-max-age"><b>Inbox freshness</b></label>
+    <span class="rf-sub">— on each Find New Jobs run, purge inbox jobs older than</span>
+    <select id="guard-max-age">${MAX_AGE_CHOICES.map(c => `<option value="${c.days}"${c.days === 7 ? ' selected' : ''}>${c.label}</option>`).join('')}</select>
   </div>
   <div class="rules-actions">
     <button type="button" class="btn-save" id="guardrails-save" onclick="saveGuardrails(this)">Save</button>
@@ -4755,6 +4825,9 @@ const server = createServer(async (req, res) => {
         let comp = pick(payload.comp, 'comp');
         const currency = pick(payload.currency, 'currency') || 'USD';
         const workpref = pick(payload.workpref, 'workpref') || 'hybrid';
+        // Inbox freshness: invalid/missing falls back to what's on disk, then 7.
+        const rawMaxAge = parseInt(payload.maxJobAgeDays, 10);
+        const maxJobAge = MAX_AGE_CHOICES.some(c => c.days === rawMaxAge) ? rawMaxAge : readMaxJobAge();
         const avoid = pick(payload.avoid, 'avoid');
         const industries = pickList(payload.industries, 'industries');
         const roles = pickList(payload.roles, 'roles');
@@ -4866,12 +4939,11 @@ const server = createServer(async (req, res) => {
           profileYml += 'industries:\n';
           industries.forEach(i => { profileYml += '  - ' + esc(i) + '\n'; });
         }
-        const extraPrefs = dumpExtraKeys(priorProfile.preferences, ['work_style'], 2);
-        if (workprefSet || extraPrefs) {
-          profileYml += '\npreferences:\n';
-          if (workprefSet) profileYml += '  work_style: ' + esc(workpref) + '   # remote | hybrid | onsite\n';
-          profileYml += extraPrefs;
-        }
+        const extraPrefs = dumpExtraKeys(priorProfile.preferences, ['work_style', 'max_job_age_days'], 2);
+        profileYml += '\npreferences:\n';
+        if (workprefSet) profileYml += '  work_style: ' + esc(workpref) + '   # remote | hybrid | onsite\n';
+        profileYml += '  max_job_age_days: ' + maxJobAge + MAX_AGE_COMMENT + '\n';
+        profileYml += extraPrefs;
         if (payOpen) {
           profileYml += '\ncompensation:\n';
           profileYml += '  open: true   # no pay floor — comp is left out of scoring entirely\n';
@@ -5311,7 +5383,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (pathname === '/api/guardrails' && req.method === 'GET') {
-      try { return sendJson(res, 200, readGuardrails()); }
+      try { return sendJson(res, 200, { ...readGuardrails(), maxJobAgeDays: readMaxJobAge() }); }
       catch (e) { return sendJson(res, 500, { ok: false, error: e.message }); }
     }
     if (pathname === '/api/guardrails' && req.method === 'POST') {
@@ -5320,6 +5392,8 @@ const server = createServer(async (req, res) => {
         const hard = Array.isArray(body.hard) ? body.hard : [];
         const soft = Array.isArray(body.soft) ? body.soft : [];
         const counts = writeGuardrails(hard, soft);
+        const maxAge = parseInt(body.maxJobAgeDays, 10);
+        if (MAX_AGE_CHOICES.some(c => c.days === maxAge)) writeMaxJobAge(maxAge);
         return sendJson(res, 200, { ok: true, ...counts });
       } catch (e) { return sendJson(res, 500, { ok: false, error: e.message }); }
     }

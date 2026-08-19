@@ -47,7 +47,7 @@ deductions, plus these always-on soft signals:
   the mismatch; do NOT apply a fixed year threshold.
 - Hard requirement of a skill or industry vertical the candidate's CV doesn't show
 - On-site/hybrid in a location that conflicts with the user's location policy (when it isn't a hard exclusion)
-- Posting age >14 days (use `scan-history.tsv` `first_seen` for the URL — drop entirely if known)
+- Posting age older than `preferences.max_job_age_days` from `config/profile.yml` (default 7 days) (use `scan-history.tsv` `first_seen` for the URL — drop entirely if known)
 
 If `_profile.md` lists **no** hard exclusions, do NOT auto-skip on comp/level/
 location — rank on fit and rely on soft penalties. A fresh user with no guardrails

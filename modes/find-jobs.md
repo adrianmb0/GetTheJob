@@ -14,7 +14,7 @@ Before doing anything, briefly state what you're about to do and the expected du
 Running find-jobs:
   1. Scan portals for new postings (~30 sec, free)
   2. Triage new URLs (deep JD read + score, ~$0.05 each)
-  3. Auto-purge triage entries >14 days old
+  3. Auto-purge inbox entries older than your configured max age (default 7 days)
   4. Auto-purge tracker entries >14 days old (Evaluated/Discarded/SKIP only)
   5. Cross-state purge + liveness sweep (drop already-applied / closed postings)
   6. Send email digest (optional, default: yes)
@@ -33,7 +33,7 @@ Run `node scan.mjs` via Bash. Capture and report the count of new URLs added to 
 
 Compute the diff: URLs in `data/pipeline.md` that are NOT already in `data/triage-scores.tsv`. These are the ones to triage this run.
 
-Also: filter OUT any URLs whose `first_seen` in `data/scan-history.tsv` is older than 14 days. Don't waste tokens triaging stale postings.
+Also: filter OUT any URLs whose `first_seen` in `data/scan-history.tsv` is older than the configured max age (`preferences.max_job_age_days` in `config/profile.yml`, default 7 days; 0 = no age limit). Don't waste tokens triaging stale postings.
 
 Report the count: "Triaging {N} new URLs."
 
@@ -54,21 +54,22 @@ While triage is running, the user is free to walk away. Stream a short progress 
 Triage progress: 12/27 done
 ```
 
-### Step 5 — Auto-purge stale triage entries
+### Step 5 — Auto-purge stale inbox entries
 
-After triage completes, drop rows from `data/triage-scores.tsv` whose **posting date** (from `data/scan-history.tsv`) is more than 14 days ago. The posting date is when the scanner first saw the URL on the company's job board — this is the real freshness signal, not when the triage row was written.
+After triage completes, run:
 
 ```bash
-# Build a set of URLs whose scan-history first_seen is older than 14 days
-awk -F'\t' -v cutoff="$(date -v-14d +%Y-%m-%d 2>/dev/null || date -d '14 days ago' +%Y-%m-%d)" '
-  NR > 1 && $2 < cutoff { print $1 }
-' data/scan-history.tsv | sort -u > /tmp/stale-posted-urls.txt
-
-# Drop matching rows from triage-scores.tsv (keep rows with no scan-history match — unknown age)
-awk -F'\t' 'NR==FNR { stale[$0]=1; next } FNR==1 || !($1 in stale)' \
-  /tmp/stale-posted-urls.txt data/triage-scores.tsv > data/triage-scores.tsv.tmp \
-  && mv data/triage-scores.tsv.tmp data/triage-scores.tsv
+node scripts/purge-stale-inbox.mjs
 ```
+
+It drops entries whose **posting date** (from `data/scan-history.tsv` `first_seen`) is older than the user's configured max age — `preferences.max_job_age_days` in `config/profile.yml`, default 7 days. The posting date is when the scanner first saw the URL on the company's job board — this is the real freshness signal, not when the triage row was written.
+
+Rules (encoded in the script):
+- Purges stale rows from `data/triage-scores.tsv` AND stale pending `- [ ]` URLs from `data/pipeline.md`
+- Keeps entries with no scan-history match (unknown age) and processed `- [x]` lines
+- Never touches `data/scan-history.tsv` (permanent dedup ledger — purged URLs are never re-added)
+- `max_job_age_days: 0` disables the purge entirely
+- Backs up each mutated file to `*.bak`; `--dry-run` to preview, `--days N` to override
 
 Report how many rows were purged.
 
@@ -167,7 +168,7 @@ Show the merged queue right in the Claude Code session:
 ```
 
 If carried-over count > 0, gently remind the user:
-> {Y} postings carried from a previous run. If you don't want to apply, run `/get-the-job skip <url>` to remove from queue. They'll auto-purge after 14 days regardless.
+> {Y} postings carried from a previous run. If you don't want to apply, run `/get-the-job skip <url>` to remove from queue. They'll auto-purge once they pass your configured max age (default 7 days) regardless.
 
 ### Step 8 — Final summary
 
@@ -176,7 +177,7 @@ Find-jobs complete.
 
 Scanned:      {N} new URLs added to pipeline.md
 Triaged:      {N} URLs scored ({M} APPLY-grade ≥4.0)
-Auto-purged:  {N} stale triage entries (>14 days)
+Auto-purged:  {N} stale inbox entries ({M} triage rows + {K} pending URLs, older than {max_job_age_days}d)
 Tracker:      {N} stale tracker rows purged (>14 days, Evaluated/Discarded/SKIP only)
 Cross-state:  {N} dropped (already Applied/Rejected/Discarded/SKIP in applications.md)
 Liveness:     {N} active, {M} removed (closed), {K} uncertain

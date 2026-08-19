@@ -56,6 +56,12 @@ narrative:
   #   url: "https://janesmith.dev/demo"
   #   password: "demo-2026"
 
+preferences:
+  # work_style: remote           # remote | hybrid | onsite
+  # Inbox freshness: on each find-jobs run, purge inbox jobs older than this
+  # many days (postings this old rarely convert). 0 = never purge.
+  max_job_age_days: 7
+
 compensation:
   target_range: "$150K-200K"     # Your target total comp
   currency: "USD"
