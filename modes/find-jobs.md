@@ -1,6 +1,6 @@
 # Mode: find-jobs — Find & Score New Jobs into the Inbox
 
-The user runs this whenever they want fresh leads (e.g. once a day). Orchestrates scan + triage + (optional) email so by the time they're ready to apply, the inbox is fresh, scored, and ranked. This is the "scan on steroids" workflow — the low-level `scan` mode only dumps new URLs; this one also reads and scores each one.
+The user runs this whenever they want fresh leads (e.g. once a day). Orchestrates scan + triage so by the time they're ready to apply, the inbox is fresh, scored, and ranked. This is the "scan on steroids" workflow — the low-level `scan` mode only dumps new URLs; this one also reads and scores each one.
 
 **Architecture choice:** Everything happens inside this active Claude Code session. No bash scripts. No `claude -p` headless. No launchd cron. The user invokes it manually; they can walk away while it runs and come back when it's done.
 
@@ -17,7 +17,6 @@ Running find-jobs:
   3. Auto-purge inbox entries older than your configured max age (default 7 days)
   4. Auto-purge tracker entries >14 days old (Evaluated/Discarded/SKIP only)
   5. Cross-state purge + liveness sweep (drop already-applied / closed postings)
-  6. Send email digest (optional, default: yes)
 
 This typically takes 5-15 min depending on how many new postings landed since last run.
 Starting now.

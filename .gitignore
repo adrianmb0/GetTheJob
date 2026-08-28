@@ -42,3 +42,4 @@ dashboard/career-dashboard
 
 # Onboarding setup backups (copies of user data)
 backups/
+scripts/logs/
