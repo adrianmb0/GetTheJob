@@ -20,7 +20,7 @@
   "author": "Adrian Melo",
   "license": "MIT",
   "dependencies": {
-    "js-yaml": "^5.4.0",
+    "js-yaml": "^5.4.1",
     "playwright": "^1.62.1"
   }
 }
